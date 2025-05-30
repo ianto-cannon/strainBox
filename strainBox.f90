@@ -1,7 +1,10 @@
 program strain_box
 use hdf5
 use, intrinsic :: ISO_FORTRAN_ENV
+use, intrinsic :: iso_c_binding
+use :: fftw3
 implicit none
+!include 'fftw3.f03'
 type ragged_array
   !2D array containing vectors of different lengths
   double precision,allocatable::v(:)
@@ -47,66 +50,40 @@ integer(hid_t) :: file_id, dset_id, filespace, memspace
 integer(hsize_t), dimension(3) :: dims, start, count
 integer(HSIZE_T), dimension(1) :: dims1d
 real(4) :: Cn
+complex :: phi_hat(nxt,nyt,nzt)
+type(fftw_plan) :: plan
 write(*,'(1x,a)') '                 starting number of drops calculation                       '
 !create output files
 open(42,file='./output/dropCount.dat',form='formatted',position='append')
 close(42,status='keep')
 
-  ! Open the file (read-only)
-  call h5open_f(error)
-  call h5fopen_f("/home/alberto.velamartin/drop_time/we_10/run_break_009/field.015.h5", &
+! Open the file (read-only)
+call h5open_f(error)
+call h5fopen_f("/home/alberto.velamartin/drop_time/we_10/run_break_009/field.015.h5", &
                  H5F_ACC_RDONLY_F, file_id, error)
-
-  ! Read scalar datasets
- dims1d=(/1/) 
- dims=(/256,256,256/) 
-call h5dopen_f(file_id, "Cn", dset_id, error)
+  dims1d=(/1/) 
+  dims=(/256,256,256/) 
+  call h5dopen_f(file_id, "Cn", dset_id, error)
   call h5dread_f(dset_id, H5T_NATIVE_REAL, Cn, dims1d, error)
   call h5dclose_f(dset_id, error)
-write(*,*) 'Cn', Cn
-call h5dopen_f(file_id, "time", dset_id, error)
+  write(*,*) 'Cn', Cn
+  call h5dopen_f(file_id, "time", dset_id, error)
   call h5dread_f(dset_id, H5T_NATIVE_REAL, Cn, dims1d, error)
   call h5dclose_f(dset_id, error)
-write(*,*) 'time', Cn
-call h5dopen_f(file_id, "c", dset_id, error)
+  write(*,*) 'time', Cn
+  call h5dopen_f(file_id, "c", dset_id, error)
   call h5dread_f(dset_id, H5T_NATIVE_REAL, phi, dims, error)
   call h5dclose_f(dset_id, error)
-write(*,*) 'phi', phi(1,1,1)
-call h5dopen_f(file_id, "We", dset_id, error)
+  write(*,*) 'phi', phi(1,1,1)
+  call h5dopen_f(file_id, "We", dset_id, error)
   call h5dread_f(dset_id, H5T_NATIVE_REAL, Cn, dims1d, error)
   call h5dclose_f(dset_id, error)
-write(*,*) 'We', Cn
-
-plan = fftw_plan_dft_r2c_1d(N, in, out, FFTW_ESTIMATE)
-
-
-  ! Open the dataset (e.g. "u")
-  call h5dopen_f(file_id, "u", dset_id, error)
-  if (error /= 0) then
-    print *, "Error opening dataset"
-    call h5fclose_f(file_id, error)
-    stop
-  end if
-
-  ! Get dataspace and dimensions
-  call h5dget_space_f(dset_id, filespace, error)
-  call h5sget_simple_extent_ndims_f(filespace, rank, error)
-  if (rank /= 3) then
-    print *, "Dataset is not 3D!"
-    call h5dclose_f(dset_id, error)
-    call h5fclose_f(file_id, error)
-    stop
-  end if
-
- !call h5sget_simple_extent_dims_f(filespace, dims, error)
-
-  ! Read the entire dataset into data
-call h5dread_f(dset_id, H5T_NATIVE_REAL, phi, nt, error)
-!call h5dread_f(dset_id, H5T_NATIVE_REAL, c, dims, error)
-  ! Close handles
+  write(*,*) 'We', Cn
   call h5dclose_f(dset_id, error)
-  call h5fclose_f(file_id, error)
+call h5fclose_f(file_id, error)
 
+!plan = fftw_plan_dft_r2c_1d(N, in, out, FFTW_ESTIMATE)
+plan = fftw_plan_dft_r2c_3d(nxt, nyt, nzt, phi, phi_hat, FFTW_ESTIMATE)
 
 if(error.ne.0) write(6,*) 'fileReadErr'
 dropVol = 0 !IC
