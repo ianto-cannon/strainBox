@@ -2,9 +2,8 @@ program strain_box
 use hdf5
 use, intrinsic :: ISO_FORTRAN_ENV
 use, intrinsic :: iso_c_binding
-use :: fftw3
 implicit none
-!include 'fftw3.f03'
+include 'fftw3.f03'
 type ragged_array
   !2D array containing vectors of different lengths
   double precision,allocatable::v(:)
@@ -51,7 +50,8 @@ integer(hsize_t), dimension(3) :: dims, start, count
 integer(HSIZE_T), dimension(1) :: dims1d
 real(4) :: Cn
 complex :: phi_hat(nxt,nyt,nzt)
-type(fftw_plan) :: plan
+!type(fftw_plan) :: plan
+type(C_PTR)  :: plan
 write(*,'(1x,a)') '                 starting number of drops calculation                       '
 !create output files
 open(42,file='./output/dropCount.dat',form='formatted',position='append')
@@ -83,7 +83,7 @@ call h5fopen_f("/home/alberto.velamartin/drop_time/we_10/run_break_009/field.015
 call h5fclose_f(file_id, error)
 
 !plan = fftw_plan_dft_r2c_1d(N, in, out, FFTW_ESTIMATE)
-plan = fftw_plan_dft_r2c_3d(nxt, nyt, nzt, phi, phi_hat, FFTW_ESTIMATE)
+plan = fftwf_plan_dft_r2c_3d(nxt, nyt, nzt, phi, phi_hat, FFTW_ESTIMATE)
 
 if(error.ne.0) write(6,*) 'fileReadErr'
 dropVol = 0 !IC
