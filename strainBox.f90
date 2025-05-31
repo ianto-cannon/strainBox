@@ -26,12 +26,12 @@ double precision, parameter :: pi=3.14159265358979
 !velocity from dataUVW is double precision
 integer(kind=int8), dimension(nxt,nyt,nzt) :: top, car
 double precision, dimension(nxt,nyt,nzt) :: kur
-real, dimension(nxt,nyt,nzt) :: phi
+real, dimension(nxt,nyt,nzt) :: u,v,w,phase,dxxPhase,chemPot,dxChemPot,dyChemPot,dzChemPot,surfFX,surfFY,surfFZ,phi
 double precision, dimension(nxt,nyt,nzt,3) :: nor, vel
 !use int8 for non shared arrays to save memory
 integer(kind=int8), dimension(nxt,nyt,nzt) :: topLocal, s_drop, void
 integer(kind=int8), dimension(0:1,0:1,0:1) :: paint, neigh
-integer :: i,j,k,id,jd,kd,ip,jp,kp,iq,jq,kq,direc,iShifted,mom,last0(3),last1(3),pos(3),ii,jj,error
+integer :: i,j,k,id,jd,kd,ip,jp,kp,iq,jq,kq,direc,iShifted,mom,last0(3),last1(3),pos(3),ii,jj,error,intR
 integer :: cols,paintIt,faceOnCorner,genus,nVoids,nSmallVoids,onInt,handles
 double precision, dimension(maxMom,3) :: dropPos
 double precision, dimension(maxMom,3) :: dropVel
@@ -48,10 +48,11 @@ integer(8), dimension(3), parameter :: decDims = (/1,1,1/), nt = (/nxt,nyt,nzt/)
 integer(hid_t) :: file_id, dset_id, filespace, memspace
 integer(hsize_t), dimension(3) :: dims, start, count
 integer(HSIZE_T), dimension(1) :: dims1d
-real(4) :: Cn
-complex :: phi_hat(nxt,nyt,nzt)
-!type(fftw_plan) :: plan
-type(C_PTR)  :: plan
+real :: Cn,r
+complex, dimension(nxt,nyt,nzt) :: cHat,chemPotHat,dxChemPotHat,dyChemPotHat,dzChemPotHat
+complex, dimension(nxt,nyt,nzt) :: surfFXHat,surfFYHat,surfFZHat,uHat,vHat,wHat
+real, dimension(nzt/2) :: FSpec
+type(C_PTR)  :: plan, plan_inverse
 write(*,'(1x,a)') '                 starting number of drops calculation                       '
 !create output files
 open(42,file='./output/dropCount.dat',form='formatted',position='append')
@@ -67,25 +68,104 @@ call h5fopen_f("/home/alberto.velamartin/drop_time/we_10/run_break_009/field.015
   call h5dread_f(dset_id, H5T_NATIVE_REAL, Cn, dims1d, error)
   call h5dclose_f(dset_id, error)
   write(*,*) 'Cn', Cn
-  call h5dopen_f(file_id, "time", dset_id, error)
-  call h5dread_f(dset_id, H5T_NATIVE_REAL, Cn, dims1d, error)
-  call h5dclose_f(dset_id, error)
-  write(*,*) 'time', Cn
-  call h5dopen_f(file_id, "c", dset_id, error)
-  call h5dread_f(dset_id, H5T_NATIVE_REAL, phi, dims, error)
-  call h5dclose_f(dset_id, error)
-  write(*,*) 'phi', phi(1,1,1)
   call h5dopen_f(file_id, "We", dset_id, error)
   call h5dread_f(dset_id, H5T_NATIVE_REAL, Cn, dims1d, error)
   call h5dclose_f(dset_id, error)
   write(*,*) 'We', Cn
+  call h5dopen_f(file_id, "c", dset_id, error)
+  call h5dread_f(dset_id, H5T_NATIVE_REAL, phase, dims, error)
   call h5dclose_f(dset_id, error)
+  write(*,*) 'phase', phase(1,1,1)
+  call h5dopen_f(file_id, "res", dset_id, error)
+  call h5dread_f(dset_id, H5T_NATIVE_REAL, Cn, dims1d, error)
+  call h5dclose_f(dset_id, error)
+  write(*,*) 'res', Cn
+  call h5dopen_f(file_id, "time", dset_id, error)
+  call h5dread_f(dset_id, H5T_NATIVE_REAL, Cn, dims1d, error)
+  call h5dclose_f(dset_id, error)
+  write(*,*) 'time', Cn
+  call h5dopen_f(file_id, "u", dset_id, error)
+  call h5dread_f(dset_id, H5T_NATIVE_REAL, u, dims, error)
+  call h5dclose_f(dset_id, error)
+  write(*,*) 'u', u(1,1,1)
+  call h5dopen_f(file_id, "v", dset_id, error)
+  call h5dread_f(dset_id, H5T_NATIVE_REAL, v, dims, error)
+  call h5dclose_f(dset_id, error)
+  write(*,*) 'v', v(1,1,1)
+  call h5dopen_f(file_id, "w", dset_id, error)
+  call h5dread_f(dset_id, H5T_NATIVE_REAL, w, dims, error)
+  call h5dclose_f(dset_id, error)
+  write(*,*) 'w', w(1,1,1)
 call h5fclose_f(file_id, error)
+plan        =fftwf_plan_dft_r2c_3d(nxt, nyt, nzt, phase, cHat, FFTW_ESTIMATE)
+plan_inverse=fftwf_plan_dft_c2r_3d(nxt, nyt, nzt, cHat, phase, FFTW_ESTIMATE)
+call fftwf_execute_dft_r2c(plan, phase, cHat)
+do k=1,nzt
+  do j=1,nyt
+    do i=1,nxt
+      cHat(i,j,k) = ((k-1)**2 + (j-1)**2 + (i-1)**2) * cHat(i,j,k)
+    enddo
+  enddo
+enddo
+call fftwf_execute_dft_c2r(plan_inverse, cHat, dxxPhase)
+chemPot = 1/Cn * (phase*phase - 1)*phase - Cn*dxxPhase
+call fftwf_execute_dft_r2c(plan, chemPot, chemPotHat)
+do k=1,nzt
+  do j=1,nyt
+    do i=1,nxt
+      dxChemPotHat(i,j,k) = i * chemPotHat(i,j,k)
+      dyChemPotHat(i,j,k) = j * chemPotHat(i,j,k)
+      dzChemPotHat(i,j,k) = k * chemPotHat(i,j,k)
+    enddo
+  enddo
+enddo
+call fftwf_execute_dft_c2r(plan_inverse, dxChemPotHat, dxChemPot)
+call fftwf_execute_dft_c2r(plan_inverse, dyChemPotHat, dyChemPot)
+call fftwf_execute_dft_c2r(plan_inverse, dzChemPotHat, dzChemPot)
+do k=1,nzt
+  do j=1,nyt
+    do i=1,nxt
+      surfFX(i,j,k) = phase(i,j,k) * dxChemPot(i,j,k)
+      surfFY(i,j,k) = phase(i,j,k) * dyChemPot(i,j,k)
+      surfFZ(i,j,k) = phase(i,j,k) * dzChemPot(i,j,k)
+    enddo
+  enddo
+enddo
+call fftwf_execute_dft_r2c(plan, surfFX, surfFXHat)
+call fftwf_execute_dft_r2c(plan, surfFY, surfFYHat)
+call fftwf_execute_dft_r2c(plan, surfFZ, surfFZHat)
+call fftwf_execute_dft_r2c(plan, u, uHat)
+call fftwf_execute_dft_r2c(plan, v, vHat)
+call fftwf_execute_dft_r2c(plan, w, wHat)
+do k=1,nzt
+  !write(6,*) 'k = ',k, 'out of ', nzt
+  do j=1,nyt
+    do i=1,nxt
+      !r=radius in k space 
+      r = sqrt( (k-1)**2 + (j-1)**2 + (i-1)**2 + 0.0)
+      !Find the bin number for this radius. Bins have width 1.0/pointsPerWvNum.
+      intR = int(r+0.5) 
+      if(intR.le.nzt/2) then
+        !Factor of half is cancelled when taking the real part of velocity*force
+        FSpec(intR) = FSpec(intR) + 1.0/nxt/nyt/nzt* & 
+                                  ( uHat(i,j,k)*surfFXHat(i,j,k) + &
+                                    vHat(i,j,k)*surfFYHat(i,j,k) + &
+                                    wHat(i,j,k)*surfFZHat(i,j,k) )
+      endif
+    enddo
+  enddo
+enddo
+filename = './output/spec.txt'
+write(6,*) 'saving to ',trim(filename)
+open(30,file=trim(filename),form='formatted',action='write')
+  do i=0,nzt/2
+    write(30,'(2E23.15)') 1.0*i,FSpec(i)
+  enddo
+close(30,status='keep')
+call fftw_destroy_plan(plan)
+call fftw_destroy_plan(plan_inverse)
+call fftw_cleanup()
 
-!plan = fftw_plan_dft_r2c_1d(N, in, out, FFTW_ESTIMATE)
-plan = fftwf_plan_dft_r2c_3d(nxt, nyt, nzt, phi, phi_hat, FFTW_ESTIMATE)
-
-if(error.ne.0) write(6,*) 'fileReadErr'
 dropVol = 0 !IC
 do k=1,nzt
   do j=1,nyt
@@ -132,7 +212,7 @@ do k=1,nzt
       if (dropVol.lt.nxt*nyt*nzt/4.and.top(i,j,k).eq.0) then
         car=0
         dropVol=0
-        if (rank.eq.0) write(*,*) 'Carrier fraction',1.0*dropVol/nxt/nyt/nzt
+        !if (rank.eq.0) write(*,*) 'Carrier fraction',1.0*dropVol/nxt/nyt/nzt
       endif
       im=i-1
       jm=j-1
