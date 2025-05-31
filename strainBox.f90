@@ -32,7 +32,7 @@ double precision, dimension(nxt,nyt,nzt,3) :: nor, vel
 integer(kind=int8), dimension(nxt,nyt,nzt) :: topLocal, s_drop, void
 integer(kind=int8), dimension(0:1,0:1,0:1) :: paint, neigh
 integer :: i,j,k,id,jd,kd,ip,jp,kp,iq,jq,kq,direc,iShifted,mom,last0(3),last1(3),pos(3),ii,jj,error,intR
-integer :: cols,paintIt,faceOnCorner,genus,nVoids,nSmallVoids,onInt,handles
+integer :: cols,paintIt,faceOnCorner,genus,nVoids,nSmallVoids,onInt,handles,ky,kz
 double precision, dimension(maxMom,3) :: dropPos
 double precision, dimension(maxMom,3) :: dropVel
 double precision, dimension(3), parameter :: l = (/lx,ly,lz/)
@@ -49,9 +49,9 @@ integer(hid_t) :: file_id, dset_id, filespace, memspace
 integer(hsize_t), dimension(3) :: dims, start, count
 integer(HSIZE_T), dimension(1) :: dims1d
 real :: Cn,r
-complex, dimension(nxt,nyt,nzt) :: cHat,chemPotHat,dxChemPotHat,dyChemPotHat,dzChemPotHat
-complex, dimension(nxt,nyt,nzt) :: surfFXHat,surfFYHat,surfFZHat,uHat,vHat,wHat
-real, dimension(nzt/2) :: FSpec
+complex, dimension(nxt/2,nyt,nzt) :: cHat,chemPotHat,dxChemPotHat,dyChemPotHat,dzChemPotHat
+complex, dimension(nxt/2,nyt,nzt) :: surfFXHat,surfFYHat,surfFZHat,uHat,vHat,wHat
+real, dimension(nzt/2) :: FSpec,ESpec
 type(C_PTR)  :: plan, plan_inverse
 write(*,'(1x,a)') '                 starting number of drops calculation                       '
 !create output files
@@ -101,9 +101,13 @@ plan        =fftwf_plan_dft_r2c_3d(nxt, nyt, nzt, phase, cHat, FFTW_ESTIMATE)
 plan_inverse=fftwf_plan_dft_c2r_3d(nxt, nyt, nzt, cHat, phase, FFTW_ESTIMATE)
 call fftwf_execute_dft_r2c(plan, phase, cHat)
 do k=1,nzt
+  kz=k-1
+  if (kz.gt.nzt/2) kz=kz-nzt
   do j=1,nyt
-    do i=1,nxt
-      cHat(i,j,k) = ((k-1)**2 + (j-1)**2 + (i-1)**2) * cHat(i,j,k)
+    ky=j-1
+    if (ky.gt.nyt/2) ky=ky-nyt
+    do i=1,nxt/2
+      cHat(i,j,k) = (kz**2 + ky**2 + (i-1)**2) * cHat(i,j,k)
     enddo
   enddo
 enddo
@@ -111,11 +115,15 @@ call fftwf_execute_dft_c2r(plan_inverse, cHat, dxxPhase)
 chemPot = 1/Cn * (phase*phase - 1)*phase - Cn*dxxPhase
 call fftwf_execute_dft_r2c(plan, chemPot, chemPotHat)
 do k=1,nzt
+  kz=k-1
+  if (kz.gt.nzt/2) kz=kz-nzt
   do j=1,nyt
-    do i=1,nxt
-      dxChemPotHat(i,j,k) = i * chemPotHat(i,j,k)
-      dyChemPotHat(i,j,k) = j * chemPotHat(i,j,k)
-      dzChemPotHat(i,j,k) = k * chemPotHat(i,j,k)
+    ky=j-1
+    if (ky.gt.nyt/2) ky=ky-nyt
+    do i=1,nxt/2+1
+      dxChemPotHat(i,j,k) =(i-1)* chemPotHat(i,j,k)
+      dyChemPotHat(i,j,k) = ky * chemPotHat(i,j,k)
+      dzChemPotHat(i,j,k) = kz * chemPotHat(i,j,k)
     enddo
   enddo
 enddo
@@ -137,20 +145,29 @@ call fftwf_execute_dft_r2c(plan, surfFZ, surfFZHat)
 call fftwf_execute_dft_r2c(plan, u, uHat)
 call fftwf_execute_dft_r2c(plan, v, vHat)
 call fftwf_execute_dft_r2c(plan, w, wHat)
+write(*,*)'uHat',uHat(1,1,1)
+ESpec=0.0
+FSpec=0.0
 do k=1,nzt
-  !write(6,*) 'k = ',k, 'out of ', nzt
+  kz=k-1
+  if (kz.gt.nzt/2) kz=kz-nzt
   do j=1,nyt
-    do i=1,nxt
-      !r=radius in k space 
-      r = sqrt( (k-1)**2 + (j-1)**2 + (i-1)**2 + 0.0)
+    ky=j-1
+    if (ky.gt.nyt/2) ky=ky-nyt
+    do i=1,nxt/2+1
+      r = sqrt( kz**2 + ky**2 + (i-1)**2 + 0.0)
       !Find the bin number for this radius. Bins have width 1.0/pointsPerWvNum.
       intR = int(r+0.5) 
       if(intR.le.nzt/2) then
         !Factor of half is cancelled when taking the real part of velocity*force
+        ESpec(intR) = ESpec(intR) + 1.0/nxt/nyt/nzt* & 
+                                  ( abs(uHat(i,j,k))**2 + &
+                                    abs(vHat(i,j,k))**2 + &
+                                    abs(wHat(i,j,k))**2 )
         FSpec(intR) = FSpec(intR) + 1.0/nxt/nyt/nzt* & 
-                                  ( uHat(i,j,k)*surfFXHat(i,j,k) + &
-                                    vHat(i,j,k)*surfFYHat(i,j,k) + &
-                                    wHat(i,j,k)*surfFZHat(i,j,k) )
+                                  ( real( conjg(uHat(i,j,k)) * surfFXHat(i,j,k) )+ &
+                                    real( conjg(vHat(i,j,k)) * surfFYHat(i,j,k) )+ &
+                                    real( conjg(wHat(i,j,k)) * surfFZHat(i,j,k) ))
       endif
     enddo
   enddo
@@ -159,7 +176,7 @@ filename = './output/spec.txt'
 write(6,*) 'saving to ',trim(filename)
 open(30,file=trim(filename),form='formatted',action='write')
   do i=0,nzt/2
-    write(30,'(2E23.15)') 1.0*i,FSpec(i)
+    write(30,'(3E23.15)') 1.0*i,ESpec(i),FSpec(i)
   enddo
 close(30,status='keep')
 call fftw_destroy_plan(plan)
