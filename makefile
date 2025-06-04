@@ -4,7 +4,7 @@ HDF5_LIB = $(HOME)/drops/boxStrain/src/lib/hdf5_install/lib
 # Compiler and flags
 FC = mpif90
 FFLAGS = -mcmodel=large -fconvert=big-endian -ffixed-line-length-140 -fno-align-commons -cpp \
-         -I$(HDF5_INC) -O3
+         -I$(HDF5_INC) -O3 -Wall
 
 # Libraries
 LIBS = -L$(HDF5_LIB) -Wl,-rpath,$(HDF5_LIB) \
