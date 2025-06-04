@@ -19,10 +19,10 @@ character(len=5) :: rankChar
 double precision :: modnor
 integer,parameter :: maxMom=2,statU=41,posiU=42,veloU=43,MoInU=44,counU=45,topoU=46,voidU=47
 integer,parameter :: nxt=256,nyt=256,nzt=256
-double precision,parameter :: lx=256,ly=256,lz=256
+double precision, parameter :: pi=3.14159265358979
+double precision,parameter :: lx=2*pi,ly=2*pi,lz=2*pi
 double precision,parameter :: dx=1,dy=1,dz=1
 integer :: rank, ntask
-double precision, parameter :: pi=3.14159265358979
 !velocity from dataUVW is double precision
 integer(kind=int8), dimension(nxt,nyt,nzt) :: top, car
 double precision, dimension(nxt,nyt,nzt) :: kur
@@ -48,10 +48,10 @@ integer(8), dimension(3), parameter :: decDims = (/1,1,1/), nt = (/nxt,nyt,nzt/)
 integer(hid_t) :: file_id, dset_id, filespace, memspace
 integer(hsize_t), dimension(3) :: dims, start, count
 integer(HSIZE_T), dimension(1) :: dims1d
-real :: Cn,r
-complex, dimension(nxt/2,nyt,nzt) :: cHat,chemPotHat,dxChemPotHat,dyChemPotHat,dzChemPotHat
-complex, dimension(nxt/2,nyt,nzt) :: surfFXHat,surfFYHat,surfFZHat,uHat,vHat,wHat
-real, dimension(nzt/2) :: FSpec,ESpec
+real :: Cn,r,RHS
+complex, dimension(nxt/2+1,nyt,nzt) :: cHat,chemPotHat,dxChemPotHat,dyChemPotHat,dzChemPotHat
+complex, dimension(nxt/2+1,nyt,nzt) :: surfFXHat,surfFYHat,surfFZHat,uHat,vHat,wHat
+real, dimension(0:nzt/2) :: FSpec,ESpec
 type(C_PTR)  :: plan, plan_inverse
 write(*,'(1x,a)') '                 starting number of drops calculation                       '
 !create output files
@@ -87,18 +87,19 @@ call h5fopen_f("/home/alberto.velamartin/drop_time/we_10/run_break_009/field.015
   call h5dopen_f(file_id, "u", dset_id, error)
   call h5dread_f(dset_id, H5T_NATIVE_REAL, u, dims, error)
   call h5dclose_f(dset_id, error)
-  write(*,*) 'u', u(1,1,1)
   call h5dopen_f(file_id, "v", dset_id, error)
   call h5dread_f(dset_id, H5T_NATIVE_REAL, v, dims, error)
   call h5dclose_f(dset_id, error)
-  write(*,*) 'v', v(1,1,1)
   call h5dopen_f(file_id, "w", dset_id, error)
   call h5dread_f(dset_id, H5T_NATIVE_REAL, w, dims, error)
   call h5dclose_f(dset_id, error)
-  write(*,*) 'w', w(1,1,1)
 call h5fclose_f(file_id, error)
-plan        =fftwf_plan_dft_r2c_3d(nxt, nyt, nzt, phase, cHat, FFTW_ESTIMATE)
-plan_inverse=fftwf_plan_dft_c2r_3d(nxt, nyt, nzt, cHat, phase, FFTW_ESTIMATE)
+!change box size from 256 to 2 pi
+u=u*lx/nxt
+v=v*ly/nyt
+w=w*lz/nxt
+plan        =fftwf_plan_dft_r2c_3d(nzt, nyt, nxt, phase, cHat, FFTW_ESTIMATE)
+plan_inverse=fftwf_plan_dft_c2r_3d(nzt, nyt, nxt, cHat, phase, FFTW_ESTIMATE)
 call fftwf_execute_dft_r2c(plan, phase, cHat)
 do k=1,nzt
   kz=k-1
@@ -106,7 +107,7 @@ do k=1,nzt
   do j=1,nyt
     ky=j-1
     if (ky.gt.nyt/2) ky=ky-nyt
-    do i=1,nxt/2
+    do i=1,nxt/2+1
       cHat(i,j,k) = (kz**2 + ky**2 + (i-1)**2) * cHat(i,j,k)
     enddo
   enddo
@@ -146,6 +147,7 @@ call fftwf_execute_dft_r2c(plan, u, uHat)
 call fftwf_execute_dft_r2c(plan, v, vHat)
 call fftwf_execute_dft_r2c(plan, w, wHat)
 write(*,*)'uHat',uHat(1,1,1)
+write(*,*)'E',0.5*sum(u**2+v**2+w**2)
 ESpec=0.0
 FSpec=0.0
 do k=1,nzt
@@ -172,6 +174,7 @@ do k=1,nzt
     enddo
   enddo
 enddo
+write(*,*)'ESpec',sum(ESpec)
 filename = './output/spec.txt'
 write(6,*) 'saving to ',trim(filename)
 open(30,file=trim(filename),form='formatted',action='write')
@@ -182,7 +185,6 @@ close(30,status='keep')
 call fftw_destroy_plan(plan)
 call fftw_destroy_plan(plan_inverse)
 call fftw_cleanup()
-
 dropVol = 0 !IC
 do k=1,nzt
   do j=1,nyt
