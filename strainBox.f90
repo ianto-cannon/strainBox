@@ -281,7 +281,6 @@ do direc=1,3
     ip=i+1
     if(ip.gt.nt(direc)) ip=ip-nt(direc)
     if(hist(direc)%v(i).gt.0.5*invSize.and.hist(direc)%v(ip).lt.0.5*invSize) last1(direc)=i
-    if(hist(direc)%v(i).lt.0.5*invSize.and.hist(direc)%v(ip).gt.0.5*invSize) write(*,*) 'last0',direc,i,ip
     if(hist(direc)%v(i).lt.0.5*invSize.and.hist(direc)%v(ip).gt.0.5*invSize) last0(direc)=i
   enddo
   !if part of the drop touches i=1, shift that part to other side of domain so drop is contiguous
@@ -293,7 +292,6 @@ do direc=1,3
     enddo
   enddo 
 enddo
-write(*,*) '296last0',last0
 MoI=0.0
 do k=1,nzt
   pos(3)=k
@@ -498,7 +496,8 @@ if(last0(1).eq.0.or.last0(2).eq.0.or.last0(3).eq.0) then
   write(*,*) 'drop spans all of domain, deformation is undefined'
   deformation=-1.0
 else
-  call DSYEV("N","U",3,MoI,3,eiVals,work,8,error)
+  !call DSYEV("N","U",3,MoI,3,eiVals,work,8,error)
+  call SSYEV("N","U",3,MoI,3,eiVals,work,8,error)
   if (error.ne.0) write(*,*) 'dropSize', dropSize, 'eiVals', eiVals
   deformation=sqrt(eiVals(3)/eiVals(1))
 endif
@@ -514,10 +513,8 @@ open(veloU,file='./output/veloDropsT'//trim(fileEnd),access='append',form='forma
   write(veloU,fmtstr) dropSize,(dropVel(mom,:),mom=1,maxMom)
 close(veloU,status='keep')
 open(MoInU,file='./output/MoInDropsT'//trim(fileEnd),access='append',form='formatted',status='old')
-  !write(MoInU,'(i16,9ES16.7E3,6i16,2ES16.7E3)') dropSize,(eiVals(i),i=1,3),&
-  !  MoI(1,1),MoI(1,2),MoI(1,3),MoI(2,2),MoI(2,3),MoI(3,3),last0(:),last1(:),kurInv,kurInvSq
-  write(*,*) '519last0',last0(:)
-  write(MoInU,*) last0(:)
+  write(MoInU,'(i16,9ES16.7E3,6i16,2ES16.7E3)') dropSize,(eiVals(i),i=1,3),&
+    MoI(1,1),MoI(1,2),MoI(1,3),MoI(2,2),MoI(2,3),MoI(3,3),last0(:),last1(:),kurInv,kurInvSq
 close(MoInU,status='keep')
 open(topoU,file='./output/topoDropsT'//trim(fileEnd),access='append',form='formatted',status='old')
   write(topoU,'(5i16)') dropSize,vertices,edges,faces,genus
