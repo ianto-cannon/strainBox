@@ -28,8 +28,8 @@ integer, dimension(3)  :: last0,last1,pos
 integer :: i,j,k,ip,jp,kp,iq,jq,kq,iShifted,mom,ii,jj,error,intR,nVels
 integer :: cols,paintIt,faceOnCorner,genus,onInt,ky,kz,im,jm,km
 real, dimension(maxMom,3) :: dropPos, dropVel
-real, dimension(3) :: eiVals, velFron, velBack
-real :: MoI(3,3), work(8), dVeldx(3,3)
+real, dimension(3) :: eiVals, velFron, velBack, dVeldx
+real :: MoI(3,3), work(8), dVeldxBox(3,3)
 real :: diag, deformation, dropArea, dA, Cn, r
 real :: maxNor, kurMean, kurStdDev, kurInv, kurInvSq, invSize
 type(ragged_array) :: hist(3) !histogram of drop mass in x, y and z directions
@@ -516,7 +516,8 @@ do k = pos(3)-boxWid, pos(3)+boxWid
     nVels = nVels + 1
     velFron(jj) = velFron(jj) + ( vel(ip,jp,kp,jj) - velFron(jj) ) / nVels
     velBack(jj) = velBack(jj) + ( vel(im,jp,kp,jj) - velBack(jj) ) / nVels
-    dVeldx(:,jj) = (vel(:,ip,jp,kp) - vel(:,im,jp,kp)) / dx / boxWid
+    dVeldx(:) = (vel(:,ip,jp,kp) - vel(:,im,jp,kp)) / dx / boxWid
+    dVeldxBox(:,jj) = dVeldxBox(:,jj) + ( dVeldx(:) - dVeldxBox(:,jj) ) / nVels
   enddo
 enddo
 jj=2
@@ -549,6 +550,7 @@ do j = pos(2)-boxWid, pos(2)+boxWid
     velBack(jj) = velBack(jj) + ( vel(ip,jm,kp,jj) - velBack(jj) ) / nVels
   enddo
 enddo
+write(*,*) 'dVeldxBox', dVeldxBox
 !do ii=1,3
 !  do jj=1,3
 !    Strain(ii,jj) = (velFron(ii) - velBack(ii)) / dx / boxWid
