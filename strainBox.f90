@@ -7,12 +7,12 @@ include 'fftw3.f03'
 type ragged_array
   !2D array containing vectors of different lengths
   real,allocatable::v(:)
-  character(len=12) :: iStepChar
+  character(len=12) :: indexName
 end type ragged_array
 character(len=200) :: filename
 real :: modnor
-integer,parameter :: maxMom=2,statU=41,posiU=42,veloU=43,MoInU=44
-integer,parameter :: counU=45,topoU=46,strainU=47,dVeldxU=48,listU=49
+integer,parameter :: maxMom=2,statU=41,posiU=42,veloU=43,MoInU=44,forcU=51
+integer,parameter :: counU=45,topoU=46,strainU=47,dVeldxU=48,listU=49,specU=50
 integer,parameter :: nxt=256, nyt=256, nzt=256, boxWid=nzt/6
 integer, dimension(3), parameter :: nt = (/nxt,nyt,nzt/)
 real, parameter :: pi=3.14159265358979
@@ -31,7 +31,7 @@ integer :: cols,paintIt,faceOnCorner,genus,onInt,ky,kz,im,jm,km,ios
 real, dimension(maxMom,3) :: dropPos, dropVel
 real, dimension(3) :: MoIEiVals, dVeldx, strainEiVals, dVeldxEiVals
 real, dimension(3,3) :: MoI, dVeldxBox, strainBox
-real :: diag, deformation, dropArea, dA, Cn, r, work(8)
+real :: diag, deformation, dropArea, dA, Cn, r, time, work(8)
 real :: maxNor, kurMean, kurStdDev, kurInv, kurInvSq, invSize
 type(ragged_array) :: hist(3) !histogram of drop mass in x, y and z directions
 !integer(kind=int64) :: dropSize, faces, edges, vertices
@@ -47,9 +47,19 @@ write(*,'(1x,a)') 'starting number of drops calculation                       '
 do ii=1,3
   allocate(hist(ii)%v(nt(ii)))
 enddo
-hist(1)%iStepChar='1'
-hist(2)%iStepChar='2'
-hist(3)%iStepChar='3'
+hist(1)%indexName='1'
+hist(2)%indexName='2'
+hist(3)%indexName='3'
+fileEnd='.dat'
+open(statU,file='./output/statDropsT'//trim(fileEnd),access='append',form='formatted',status="REPLACE")
+open(posiU,file='./output/posiDropsT'//trim(fileEnd),access='append',form='formatted',status="REPLACE")
+open(veloU,file='./output/veloDropsT'//trim(fileEnd),access='append',form='formatted',status="REPLACE")
+open(MoInU,file='./output/MoInDropsT'//trim(fileEnd),access='append',form='formatted',status="REPLACE")
+open(dVeldxU,file='./output/dVeldxBox'//trim(fileEnd),access='append',form='formatted',status="REPLACE")
+open(strainU,file='./output/strainBox'//trim(fileEnd),access='append',form='formatted',status="REPLACE")
+open(topoU,file='./output/topoDropsT'//trim(fileEnd),access='append',form='formatted',status="REPLACE")
+open(specU,file='./output/ESpec'//trim(fileEnd),access='append',form='formatted',status="REPLACE")
+open(forcU,file='./output/FSpec'//trim(fileEnd),access='append',form='formatted',status="REPLACE")
 call system("ls /home/alberto.velamartin/drop_time/we_10/run_break_009/field*.h5 > file_list.txt")
 !Open the generated file list
 open(unit=listU, file="file_list.txt", status="old", action="read")
@@ -77,9 +87,9 @@ do
     call h5dclose_f(dset_id, error)
     write(*,*) 'res', Cn
     call h5dopen_f(file_id, "time", dset_id, error)
-    call h5dread_f(dset_id, H5T_NATIVE_REAL, Cn, dims1d, error)
+    call h5dread_f(dset_id, H5T_NATIVE_REAL, time, dims1d, error)
     call h5dclose_f(dset_id, error)
-    write(*,*) 'time', Cn
+    write(*,*) 'time', time
     call h5dopen_f(file_id, "u", dset_id, error)
     call h5dread_f(dset_id, H5T_NATIVE_REAL, u, dims, error)
     call h5dclose_f(dset_id, error)
@@ -172,14 +182,6 @@ do
       enddo
     enddo
   enddo
-  write(*,*)'ESpec',sum(ESpec)
-  filename = './output/spec.txt'
-  write(6,*) 'saving to ',trim(filename)
-  open(30,file=trim(filename),form='formatted',action='write')
-    do i=0,nzt/2
-      write(30,'(3E23.15)') 1.0*i,ESpec(i),FSpec(i)
-    enddo
-  close(30,status='keep')
   call fftw_destroy_plan(plan)
   call fftw_destroy_plan(plan_inverse)
   call fftw_cleanup()
@@ -237,21 +239,6 @@ do
       enddo
     enddo
   enddo
-  fileEnd='.dat'
-  open(statU,file='./output/statDropsT'//trim(fileEnd),access='append',form='formatted',status="REPLACE")
-  close(statU,status='keep')
-  open(posiU,file='./output/posiDropsT'//trim(fileEnd),access='append',form='formatted',status="REPLACE")
-  close(posiU,status='keep')
-  open(veloU,file='./output/veloDropsT'//trim(fileEnd),access='append',form='formatted',status="REPLACE")
-  close(veloU,status='keep')
-  open(MoInU,file='./output/MoInDropsT'//trim(fileEnd),access='append',form='formatted',status="REPLACE")
-  close(MoInU,status='keep')
-  open(dVeldxU,file='./output/dVeldxBox'//trim(fileEnd),access='append',form='formatted',status="REPLACE")
-  close(dVeldxU,status='keep')
-  open(strainU,file='./output/strainBox'//trim(fileEnd),access='append',form='formatted',status="REPLACE")
-  close(strainU,status='keep')
-  open(topoU,file='./output/topoDropsT'//trim(fileEnd),access='append',form='formatted',status="REPLACE")
-  close(topoU,status='keep')
   !calculate drop statistics if minimum i j k in the drop lies in the processor's domain
   invSize = 1.0/dropSize
   dropArea=0.0
@@ -567,34 +554,43 @@ do
   enddo
   call SSYEV("V","U",3,dVeldxBox,3,dVeldxEiVals,work,8,error)
   call SSYEV("V","U",3,strainBox,3,strainEiVals,work,8,error)
-  open(statU,file='./output/statDropsT'//trim(fileEnd),access='append',form='formatted',status='old')
-    write(statU,'(i16,4ES16.7E3,6i16,2ES16.7E3)') dropSize,dropArea,deformation,kurMean,kurStdDev,&
-          last0(:),last1(:),kurInv,kurInvSq
-  close(statU,status='keep')
+  write(statU,'(i16,4ES16.7E3,6i16,2ES16.7E3)') time, dropSize,dropArea,deformation,kurMean,kurStdDev,&
+        last0(:),last1(:),kurInv,kurInvSq
+  flush(statU)
   ! generate format string for writing 
-  write(fmtstr,'(a,i0,a)') '(i16,',maxMom*3,'(ES16.7E3))'
-  open(posiU,file='./output/posiDropsT'//trim(fileEnd),access='append',form='formatted',status='old')
-    write(posiU,fmtstr) dropSize,(dropPos(mom,:),mom=1,maxMom)
-  close(posiU,status='keep')
-  open(veloU,file='./output/veloDropsT'//trim(fileEnd),access='append',form='formatted',status='old')
-    write(veloU,fmtstr) dropSize,(dropVel(mom,:),mom=1,maxMom)
-  close(veloU,status='keep')
-  open(MoInU,file='./output/MoInDropsT'//trim(fileEnd),access='append',form='formatted',status='old')
-    write(MoInU,'(12ES16.7E3)') MoIEiVals, MoI
-  close(MoInU,status='keep')
-  open(dVeldxU,file='./output/dVeldxBox'//trim(fileEnd),access='append',form='formatted',status='old')
-    write(dVeldxU,'(12ES16.7E3)') dVeldxEiVals, dVeldxBox
-  close(dVeldxU,status='keep')
-  open(strainU,file='./output/strainBox'//trim(fileEnd),access='append',form='formatted',status='old')
-    write(strainU,'(12ES16.7E3)') strainEiVals, strainBox
-  close(strainU,status='keep')
-  open(topoU,file='./output/topoDropsT'//trim(fileEnd),access='append',form='formatted',status='old')
-    write(topoU,'(5i16)') dropSize,vertices,edges,faces,genus
-  close(topoU,status='keep')
+  write(fmtstr,'(a,i0,a)') '(ES16.7E3, i16,',maxMom*3,'(ES16.7E3))'
+  write(posiU,fmtstr) time, dropSize,(dropPos(mom,:),mom=1,maxMom)
+  flush(posiU)
+  write(veloU,fmtstr) time, dropSize,(dropVel(mom,:),mom=1,maxMom)
+  flush(veloU)
+  write(MoInU,'(13ES16.7E3)') time, MoIEiVals, MoI
+  flush(MoInU)
+  write(dVeldxU,'(13ES16.7E3)') time, dVeldxEiVals, dVeldxBox
+  flush(dVeldxU)
+  write(strainU,'(13ES16.7E3)') time, strainEiVals, strainBox
+  flush(strainU)
+  write(topoU,'(ES16.7E3, 5i16)') time, dropSize,vertices,edges,faces,genus
+  flush(topoU)
+  write(fmtstr,'(a,i0,a)') '(,',maxMom*3,'(ES16.7E3))'
+  write(specU,fmtstr) time,ESpec 
+  flush(specU)
+  write(forcU,fmtstr) time,FSpec 
+  !  do i=0,nzt/2
+  !    write(30,'(3E23.15)') 1.0*i,ESpec(i),FSpec(i)
+  !close(30,status='keep')
 enddo
 do ii=1,3
   deallocate(hist(ii)%v)
 enddo
+close(posiU,status='keep')
+close(veloU,status='keep')
+close(MoInU,status='keep')
+close(dVeldxU,status='keep')
+close(strainU,status='keep')
+close(statU,status='keep')
+close(topoU,status='keep')
+close(specU,status='keep')
+close(forcU,status='keep')
 close(listU)
 call system("rm file_list.txt")
 write(6,*) 'This is the end'
