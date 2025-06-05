@@ -20,16 +20,16 @@ real, dimension(3), parameter :: l = (/lx,ly,lz/)
 real,parameter :: dx=lx/nxt, dy=ly/nxt, dz=lz/nxt
 real, dimension(nxt,nyt,nzt) :: kur,u,v,w,phase,dxxPhase
 real, dimension(nxt,nyt,nzt) :: chemPot,dxChemPot,dyChemPot,dzChemPot,surfFX,surfFY,surfFZ
-real, dimension(nxt,nyt,nzt,3) :: nor, vel
+real, dimension(3,nxt,nyt,nzt) :: nor, vel
 !use int8 for non shared arrays to save memory
 integer, dimension(nxt,nyt,nzt) :: s_drop
 integer, dimension(0:1,0:1,0:1) :: paint, neigh
 integer, dimension(3)  :: last0,last1,pos
-integer :: i,j,k,ip,jp,kp,iq,jq,kq,direc,iShifted,mom,ii,jj,error,intR,nVels
+integer :: i,j,k,ip,jp,kp,iq,jq,kq,iShifted,mom,ii,jj,error,intR,nVels
 integer :: cols,paintIt,faceOnCorner,genus,onInt,ky,kz,im,jm,km
 real, dimension(maxMom,3) :: dropPos, dropVel
 real, dimension(3) :: eiVals, velFron, velBack
-real :: MoI(3,3), work(8), dVeldx
+real :: MoI(3,3), work(8), dVeldx(3,3)
 real :: diag, deformation, dropArea, dA, Cn, r
 real :: maxNor, kurMean, kurStdDev, kurInv, kurInvSq, invSize
 type(ragged_array) :: hist(3) !histogram of drop mass in x, y and z directions
@@ -80,9 +80,9 @@ call h5fclose_f(file_id, error)
 u=u*lx/nxt
 v=v*ly/nyt
 w=w*lz/nxt
-vel(:,:,:,1)=u
-vel(:,:,:,2)=v
-vel(:,:,:,3)=w
+vel(1,:,:,:)=u
+vel(2,:,:,:)=v
+vel(3,:,:,:)=w
 plan        =fftwf_plan_dft_r2c_3d(nzt, nyt, nxt, phase, cHat, FFTW_ESTIMATE)
 plan_inverse=fftwf_plan_dft_c2r_3d(nzt, nyt, nxt, cHat, phase, FFTW_ESTIMATE)
 call fftwf_execute_dft_r2c(plan, phase, cHat)
@@ -192,13 +192,12 @@ do k=1,nzt
       if(im.lt.1) im=im+nxt
       if(jm.lt.1) jm=jm+nyt
       if(km.lt.1) km=km+nzt
-      nor(i,j,k,1)=(phase(ip,j,k)-phase(im,j,k))*(0.5/dx)
-      nor(i,j,k,2)=(phase(i,jp,k)-phase(i,jm,k))*(0.5/dy)
-      nor(i,j,k,3)=(phase(i,j,kp)-phase(i,j,km))*(0.5/dz)
-      !modnor=dsqrt(nor(i,j,k,1)**2+nor(i,j,k,2)**2+nor(i,j,k,3)**2)
-      modnor=sqrt(nor(i,j,k,1)**2+nor(i,j,k,2)**2+nor(i,j,k,3)**2)
+      nor(1,i,j,k)=(phase(ip,j,k)-phase(im,j,k))*(0.5/dx)
+      nor(2,i,j,k)=(phase(i,jp,k)-phase(i,jm,k))*(0.5/dy)
+      nor(3,i,j,k)=(phase(i,j,kp)-phase(i,j,km))*(0.5/dz)
+      modnor=sqrt(nor(1,i,j,k)**2+nor(2,i,j,k)**2+nor(3,i,j,k)**2)
       !outward pointing normal
-      nor(i,j,k,:)=-nor(i,j,k,:)/modnor
+      nor(:,i,j,k)=-nor(:,i,j,k)/modnor
     enddo
   enddo
 enddo
@@ -218,9 +217,9 @@ do k=1,nzt
       if(jp.gt.nyt) jp=jp-nyt
       if(kp.gt.nzt) kp=kp-nzt
       !compute curvature in backward direction
-      kur(i,j,k)=(nor(ip,j,k,1)-nor(im,j,k,1))*(0.5/dx)+ &
-                 (nor(i,jp,k,2)-nor(i,jm,k,2))*(0.5/dy)+ &
-                 (nor(i,j,kp,3)-nor(i,j,km,3))*(0.5/dz)
+      kur(i,j,k)=(nor(1,ip,j,k)-nor(1,im,j,k))*(0.5/dx)+ &
+                 (nor(2,i,jp,k)-nor(2,i,jm,k))*(0.5/dy)+ &
+                 (nor(3,i,j,kp)-nor(3,i,j,km))*(0.5/dz)
     enddo
   enddo
 enddo
@@ -235,8 +234,8 @@ open(MoInU,file='./output/MoInDropsT'//trim(fileEnd),access='append',form='forma
 close(MoInU,status='keep')
 open(topoU,file='./output/topoDropsT'//trim(fileEnd),access='append',form='formatted',status="REPLACE")
 close(topoU,status='keep')
-do direc=1,3
-  allocate(hist(direc)%v(nt(direc)))
+do ii=1,3
+  allocate(hist(ii)%v(nt(ii)))
 enddo
 hist(1)%iStepChar='1'
 hist(2)%iStepChar='2'
@@ -251,8 +250,8 @@ kurInvSq=0.0
 faces=0
 edges=0
 vertices=0
-do direc=1,3
-  hist(direc)%v=0.0
+do ii=1,3
+  hist(ii)%v=0.0
 enddo
 dropVel=0.0
 !make histograms of drop mass in each direction so we can avoid overlap with periodic 
@@ -264,9 +263,9 @@ do k=1,nzt
         hist(1)%v(i)=hist(1)%v(i)+invSize
         hist(2)%v(j)=hist(2)%v(j)+invSize
         hist(3)%v(k)=hist(3)%v(k)+invSize
-        do direc=1,3
+        do ii=1,3
           do mom = 1,maxMom
-            dropVel(mom,direc) = dropVel(mom,direc) + (vel(i,j,k,direc)**mom)*invSize
+            dropVel(mom,ii) = dropVel(mom,ii) + (vel(ii,i,j,k)**mom)*invSize
           enddo
         enddo
       endif
@@ -276,20 +275,20 @@ enddo
 dropPos=0.0
 last0=0
 last1=0
-do direc=1,3
+do ii=1,3
   !find beginning and end of drop in x,y,z directions
-  do i=1,nt(direc)
+  do i=1,nt(ii)
     ip=i+1
-    if(ip.gt.nt(direc)) ip=ip-nt(direc)
-    if(hist(direc)%v(i).gt.0.5*invSize.and.hist(direc)%v(ip).lt.0.5*invSize) last1(direc)=i
-    if(hist(direc)%v(i).lt.0.5*invSize.and.hist(direc)%v(ip).gt.0.5*invSize) last0(direc)=i
+    if(ip.gt.nt(ii)) ip=ip-nt(ii)
+    if(hist(ii)%v(i).gt.0.5*invSize.and.hist(ii)%v(ip).lt.0.5*invSize) last1(ii)=i
+    if(hist(ii)%v(i).lt.0.5*invSize.and.hist(ii)%v(ip).gt.0.5*invSize) last0(ii)=i
   enddo
   !if part of the drop touches i=1, shift that part to other side of domain so drop is contiguous
-  do i=1,nt(direc)
+  do i=1,nt(ii)
     iShifted = i
-    if(last1(direc).lt.last0(direc).and.i.le.last1(direc)) iShifted = i+nt(direc)
+    if(last1(ii).lt.last0(ii).and.i.le.last1(ii)) iShifted = i+nt(ii)
     do mom = 1,maxMom
-      dropPos(mom,direc) = dropPos(mom,direc) + hist(direc)%v(i)*(iShifted**mom)
+      dropPos(mom,ii) = dropPos(mom,ii) + hist(ii)%v(i)*(iShifted**mom)
     enddo
   enddo 
 enddo
@@ -321,26 +320,26 @@ do k=1,nzt
       endif
       !the interface is here if s_drop changes in any of the 6 directions
       onInt=0
-      do direc=1,3
+      do ii=1,3
         ip = i
         jp = j
         kp = k
         iq = i
         jq = j
         kq = k
-        if (direc.eq.1) then
+        if (ii.eq.1) then
           ip=i+1
           if(ip.gt.nxt)ip=ip-nxt
           iq=i-1
           if(iq.lt.1)  iq=iq+nxt
         endif
-        if (direc.eq.2) then
+        if (ii.eq.2) then
           jp=j+1
           if(jp.gt.nyt)jp=jp-nyt
           jq=j-1
           if(jq.lt.1)  jq=jq+nyt
         endif
-        if (direc.eq.3) then
+        if (ii.eq.3) then
           kp=k+1
           if(kp.gt.nzt)kp=kp-nzt
           kq=k-1
@@ -353,12 +352,12 @@ do k=1,nzt
         !find direction which is most aligned with interface normal
         maxNor=0.0
         dA=0.0
-        do direc=1,3
-          if(abs(nor(i,j,k,direc)).gt.maxNor)then
-            maxNor = abs(nor(i,j,k,direc))
-            if(direc.eq.1)dA=dy*dz
-            if(direc.eq.2)dA=dz*dx
-            if(direc.eq.3)dA=dx*dy
+        do ii=1,3
+          if(abs(nor(ii,i,j,k)).gt.maxNor)then
+            maxNor = abs(nor(ii,i,j,k))
+            if(ii.eq.1)dA=dy*dz
+            if(ii.eq.2)dA=dz*dx
+            if(ii.eq.3)dA=dx*dy
           endif
         enddo
         !area of interface is 
@@ -425,13 +424,13 @@ do k=1,nzt
             do jq=0,1
               do iq=0,1
                 if(neigh(iq,jq,kq).gt.0) then
-                  do direc=1,3
+                  do ii=1,3
                     ip=iq
                     jp=jq
                     kp=kq
-                    if(direc.eq.1) ip=1-iq
-                    if(direc.eq.2) jp=1-jq
-                    if(direc.eq.3) kp=1-kq
+                    if(ii.eq.1) ip=1-iq
+                    if(ii.eq.2) jp=1-jq
+                    if(ii.eq.3) kp=1-kq
                     !paint any touching cells the same colour
                     if(neigh(iq,jq,kq).eq.neigh(ip,jp,kp)) then
                       if(paint(ip,jp,kp).ne.paint(iq,jq,kq)) then
@@ -489,65 +488,65 @@ else
   if (error.ne.0) write(*,*) 'dropSize', dropSize, 'eiVals', eiVals
   deformation=sqrt(eiVals(3)/eiVals(1))
 endif
-do direc=1,3
+do ii=1,3
   !move drop back inside domain
-  if(dropPos(1,direc).gt.nt(direc)) then
+  if(dropPos(1,ii).gt.nt(ii)) then
     do mom=1,maxMom
-      dropPos(mom,direc)=dropPos(mom,direc)-nt(direc)**mom
+      dropPos(mom,ii)=dropPos(mom,ii)-nt(ii)**mom
     enddo
   endif
-  pos(direc) = int(dropPos(1,direc))
+  pos(ii) = int(dropPos(1,ii))
   !put in units of simulation domain size
   do mom=1,maxMom
-    dropPos(mom,direc)=dropPos(mom,direc) * ( l(direc)/nt(direc) )**mom
+    dropPos(mom,ii)=dropPos(mom,ii) * ( l(ii)/nt(ii) )**mom
   enddo
 enddo
 velFron = 0.0
 velBack = 0.0
-direc=1
+jj=1
 ip = pos(1) + boxWid
-ip = mod(ip-1, nt(direc)) + 1
+ip = mod(ip-1, nt(jj)) + 1
 im = pos(1) - boxWid
-im = mod(im-1, nt(direc)) + 1
+im = mod(im-1, nt(jj)) + 1
 nVels = 0
 do k = pos(3)-boxWid, pos(3)+boxWid
   kp = mod(k-1, nzt) + 1
   do j = pos(2)-boxWid, pos(2)+boxWid
     jp = mod(j-1, nyt) + 1
     nVels = nVels + 1
-    velFron(direc) = velFron(direc) + ( vel(ip,jp,kp,direc) - velFron(direc) ) / nVels
-    velBack(direc) = velBack(direc) + ( vel(im,jp,kp,direc) - velBack(direc) ) / nVels
-    dVeldx(:,direc) = vel(ip,jp,kp,:) - vel(ip,jp,kp,:)
+    velFron(jj) = velFron(jj) + ( vel(ip,jp,kp,jj) - velFron(jj) ) / nVels
+    velBack(jj) = velBack(jj) + ( vel(im,jp,kp,jj) - velBack(jj) ) / nVels
+    dVeldx(:,jj) = (vel(:,ip,jp,kp) - vel(:,im,jp,kp)) / dx / boxWid
   enddo
 enddo
-direc=2
-jp = pos(direc) + boxWid
-jp = mod(jp-1, nt(direc)) + 1
-jm = pos(direc) - boxWid
-jm = mod(jm-1, nt(direc)) + 1
+jj=2
+jp = pos(jj) + boxWid
+jp = mod(jp-1, nt(jj)) + 1
+jm = pos(jj) - boxWid
+jm = mod(jm-1, nt(jj)) + 1
 nVels = 0
 do k = pos(3)-boxWid, pos(3)+boxWid
   kp = mod(k-1, nzt) + 1
   do i = pos(1)-boxWid, pos(1)+boxWid
     ip = mod(i-1, nxt) + 1
     nVels = nVels + 1
-    velFron(direc) = velFron(direc) + ( vel(ip,jp,kp,direc) - velFron(direc) ) / nVels
-    velBack(direc) = velBack(direc) + ( vel(ip,jm,kp,direc) - velBack(direc) ) / nVels
+    velFron(jj) = velFron(jj) + ( vel(ip,jp,kp,jj) - velFron(jj) ) / nVels
+    velBack(jj) = velBack(jj) + ( vel(ip,jm,kp,jj) - velBack(jj) ) / nVels
   enddo
 enddo
-direc=3
-kp = pos(direc) + boxWid
-kp = mod(kp-1, nt(direc)) + 1
-km = pos(direc) - boxWid
-km = mod(km-1, nt(direc)) + 1
+jj=3
+kp = pos(jj) + boxWid
+kp = mod(kp-1, nt(jj)) + 1
+km = pos(jj) - boxWid
+km = mod(km-1, nt(jj)) + 1
 nVels = 0
 do j = pos(2)-boxWid, pos(2)+boxWid
   jp = mod(j-1, nyt) + 1
   do i = pos(1)-boxWid, pos(1)+boxWid
     ip = mod(i-1, nxt) + 1
     nVels = nVels + 1
-    velFron(direc) = velFron(direc) + ( vel(ip,jp,kp,direc) - velFron(direc) ) / nVels
-    velBack(direc) = velBack(direc) + ( vel(ip,jm,kp,direc) - velBack(direc) ) / nVels
+    velFron(jj) = velFron(jj) + ( vel(ip,jp,kp,jj) - velFron(jj) ) / nVels
+    velBack(jj) = velBack(jj) + ( vel(ip,jm,kp,jj) - velBack(jj) ) / nVels
   enddo
 enddo
 !do ii=1,3
