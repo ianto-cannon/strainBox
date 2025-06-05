@@ -480,6 +480,7 @@ kurMean = kurMean / dropArea
 kurStdDev = sqrt( kurStdDev/dropArea - kurMean**2 )
 kurInv = kurInv / dropArea
 kurInvSq = kurInvSq / dropArea
+velFron = 0.0
 do direc=1,3
   !move drop back inside domain
   if(dropPos(1,direc).gt.nt(direc)) then
@@ -496,6 +497,10 @@ do direc=1,3
   boxBack(direc) = modulo( dropPos(1,direc)-boxWid/2, l(direc))
   iBoxBack(direc) = nint(boxBack(direc) * nt(direc) / l(direc))
 enddo
+do k=iBoxBack(3),iBoxFron(3)
+  do j=1,nyt
+    do i=1,nxt
+velFron(direc) = velFron(direc) + ( vel(direc,i,j,k) - velFron(direc) ) / nFron(direc)
 write(*,*) 'boxFron iBoxFron', boxFron, iBoxFron
 write(*,*) 'boxBack iBoxBack', boxBack, iBoxBack
 !Calculate eigenvalues of moment of inertia
