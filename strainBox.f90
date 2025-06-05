@@ -12,10 +12,10 @@ end type ragged_array
 character(len=200) :: filename
 real :: modnor
 integer,parameter :: maxMom=2,statU=41,posiU=42,veloU=43,MoInU=44,counU=45,topoU=46
-integer,parameter :: nxt=256, nyt=256, nzt=256
+integer,parameter :: nxt=256, nyt=256, nzt=256, boxWid=nzt/6
 integer, dimension(3), parameter :: nt = (/nxt,nyt,nzt/)
 real, parameter :: pi=3.14159265358979
-real,parameter :: lx=2*pi, ly=2*pi, lz=2*pi, boxWid=lz/6
+real,parameter :: lx=2*pi, ly=2*pi, lz=2*pi
 real, dimension(3), parameter :: l = (/lx,ly,lz/)
 real,parameter :: dx=lx/nxt, dy=ly/nxt, dz=lz/nxt
 real, dimension(nxt,nyt,nzt) :: kur,u,v,w,phase,dxxPhase
@@ -24,12 +24,12 @@ real, dimension(nxt,nyt,nzt,3) :: nor, vel
 !use int8 for non shared arrays to save memory
 integer, dimension(nxt,nyt,nzt) :: s_drop
 integer, dimension(0:1,0:1,0:1) :: paint, neigh
-integer :: i,j,k,ip,jp,kp,iq,jq,kq,direc,iShifted,mom,ii,jj,error,intR
-integer, dimension(3)  :: last0,last1,pos,iBoxFron,iBoxBack
+integer, dimension(3)  :: last0,last1,pos
+integer :: i,j,k,ip,jp,kp,iq,jq,kq,direc,iShifted,mom,ii,jj,error,intR,nVels
 integer :: cols,paintIt,faceOnCorner,genus,onInt,ky,kz,im,jm,km
 real, dimension(maxMom,3) :: dropPos, dropVel
-real, dimension(3) :: boxFron, boxBack, eiVals
-real :: MoI(3,3), work(8)
+real, dimension(3) :: eiVals, velFron, velBack
+real :: MoI(3,3), work(8), dVeldx
 real :: diag, deformation, dropArea, dA, Cn, r
 real :: maxNor, kurMean, kurStdDev, kurInv, kurInvSq, invSize
 type(ragged_array) :: hist(3) !histogram of drop mass in x, y and z directions
@@ -480,29 +480,6 @@ kurMean = kurMean / dropArea
 kurStdDev = sqrt( kurStdDev/dropArea - kurMean**2 )
 kurInv = kurInv / dropArea
 kurInvSq = kurInvSq / dropArea
-velFron = 0.0
-do direc=1,3
-  !move drop back inside domain
-  if(dropPos(1,direc).gt.nt(direc)) then
-    do mom=1,maxMom
-      dropPos(mom,direc)=dropPos(mom,direc)-nt(direc)**mom
-    enddo
-  endif
-  !put in units of simulation domain size
-  do mom=1,maxMom
-    dropPos(mom,direc)=dropPos(mom,direc) * ( l(direc)/nt(direc) )**mom
-  enddo
-  boxFron(direc) = modulo( dropPos(1,direc)+boxWid/2, l(direc))
-  iBoxFron(direc) = nint(boxFron(direc) * nt(direc) / l(direc))
-  boxBack(direc) = modulo( dropPos(1,direc)-boxWid/2, l(direc))
-  iBoxBack(direc) = nint(boxBack(direc) * nt(direc) / l(direc))
-enddo
-do k=iBoxBack(3),iBoxFron(3)
-  do j=1,nyt
-    do i=1,nxt
-velFron(direc) = velFron(direc) + ( vel(direc,i,j,k) - velFron(direc) ) / nFron(direc)
-write(*,*) 'boxFron iBoxFron', boxFron, iBoxFron
-write(*,*) 'boxBack iBoxBack', boxBack, iBoxBack
 !Calculate eigenvalues of moment of inertia
 if(last0(1).eq.0.or.last0(2).eq.0.or.last0(3).eq.0) then
   write(*,*) 'drop spans all of domain, deformation is undefined'
@@ -512,6 +489,74 @@ else
   if (error.ne.0) write(*,*) 'dropSize', dropSize, 'eiVals', eiVals
   deformation=sqrt(eiVals(3)/eiVals(1))
 endif
+do direc=1,3
+  !move drop back inside domain
+  if(dropPos(1,direc).gt.nt(direc)) then
+    do mom=1,maxMom
+      dropPos(mom,direc)=dropPos(mom,direc)-nt(direc)**mom
+    enddo
+  endif
+  pos(direc) = int(dropPos(1,direc))
+  !put in units of simulation domain size
+  do mom=1,maxMom
+    dropPos(mom,direc)=dropPos(mom,direc) * ( l(direc)/nt(direc) )**mom
+  enddo
+enddo
+velFron = 0.0
+velBack = 0.0
+direc=1
+ip = pos(1) + boxWid
+ip = mod(ip-1, nt(direc)) + 1
+im = pos(1) - boxWid
+im = mod(im-1, nt(direc)) + 1
+nVels = 0
+do k = pos(3)-boxWid, pos(3)+boxWid
+  kp = mod(k-1, nzt) + 1
+  do j = pos(2)-boxWid, pos(2)+boxWid
+    jp = mod(j-1, nyt) + 1
+    nVels = nVels + 1
+    velFron(direc) = velFron(direc) + ( vel(ip,jp,kp,direc) - velFron(direc) ) / nVels
+    velBack(direc) = velBack(direc) + ( vel(im,jp,kp,direc) - velBack(direc) ) / nVels
+    dVeldx(:,direc) = vel(ip,jp,kp,:) - vel(ip,jp,kp,:)
+  enddo
+enddo
+direc=2
+jp = pos(direc) + boxWid
+jp = mod(jp-1, nt(direc)) + 1
+jm = pos(direc) - boxWid
+jm = mod(jm-1, nt(direc)) + 1
+nVels = 0
+do k = pos(3)-boxWid, pos(3)+boxWid
+  kp = mod(k-1, nzt) + 1
+  do i = pos(1)-boxWid, pos(1)+boxWid
+    ip = mod(i-1, nxt) + 1
+    nVels = nVels + 1
+    velFron(direc) = velFron(direc) + ( vel(ip,jp,kp,direc) - velFron(direc) ) / nVels
+    velBack(direc) = velBack(direc) + ( vel(ip,jm,kp,direc) - velBack(direc) ) / nVels
+  enddo
+enddo
+direc=3
+kp = pos(direc) + boxWid
+kp = mod(kp-1, nt(direc)) + 1
+km = pos(direc) - boxWid
+km = mod(km-1, nt(direc)) + 1
+nVels = 0
+do j = pos(2)-boxWid, pos(2)+boxWid
+  jp = mod(j-1, nyt) + 1
+  do i = pos(1)-boxWid, pos(1)+boxWid
+    ip = mod(i-1, nxt) + 1
+    nVels = nVels + 1
+    velFron(direc) = velFron(direc) + ( vel(ip,jp,kp,direc) - velFron(direc) ) / nVels
+    velBack(direc) = velBack(direc) + ( vel(ip,jm,kp,direc) - velBack(direc) ) / nVels
+  enddo
+enddo
+!do ii=1,3
+!  do jj=1,3
+!    Strain(ii,jj) = (velFron(ii) - velBack(ii)) / dx / boxWid
+!    if(ii.eq.jj) MoI(ii,jj) = MoI(ii,jj) + diag
+!  enddo
+!enddo
+
 open(statU,file='./output/statDropsT'//trim(fileEnd),access='append',form='formatted',status='old')
   write(statU,'(i16,4ES16.7E3)') dropSize,dropArea,deformation,kurMean,kurStdDev
 close(statU,status='keep')
