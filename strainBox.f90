@@ -13,8 +13,9 @@ character(len=200) :: filename
 real :: modnor
 integer,parameter :: maxMom=2,statU=41,posiU=42,veloU=43,MoInU=44,counU=45,topoU=46
 integer,parameter :: nxt=256, nyt=256, nzt=256
+integer, dimension(3), parameter :: nt = (/nxt,nyt,nzt/)
 real, parameter :: pi=3.14159265358979
-real,parameter :: lx=2*pi, ly=2*pi, lz=2*pi
+real,parameter :: lx=2*pi, ly=2*pi, lz=2*pi, boxWid=lz/6
 real, dimension(3), parameter :: l = (/lx,ly,lz/)
 real,parameter :: dx=lx/nxt, dy=ly/nxt, dz=lz/nxt
 real, dimension(nxt,nyt,nzt) :: kur,u,v,w,phase,dxxPhase
@@ -23,24 +24,25 @@ real, dimension(nxt,nyt,nzt,3) :: nor, vel
 !use int8 for non shared arrays to save memory
 integer, dimension(nxt,nyt,nzt) :: s_drop
 integer, dimension(0:1,0:1,0:1) :: paint, neigh
-integer :: i,j,k,ip,jp,kp,iq,jq,kq,direc,iShifted,mom,last0(3),last1(3),pos(3),ii,jj,error,intR
+integer :: i,j,k,ip,jp,kp,iq,jq,kq,direc,iShifted,mom,ii,jj,error,intR
+integer, dimension(3)  :: last0,last1,pos,iBoxFron,iBoxBack
 integer :: cols,paintIt,faceOnCorner,genus,onInt,ky,kz,im,jm,km
 real, dimension(maxMom,3) :: dropPos, dropVel
-real :: MoI(3,3), work(8), eiVals(3)
+real, dimension(3) :: boxFron, boxBack, eiVals
+real :: MoI(3,3), work(8)
 real :: diag, deformation, dropArea, dA, Cn, r
 real :: maxNor, kurMean, kurStdDev, kurInv, kurInvSq, invSize
 type(ragged_array) :: hist(3) !histogram of drop mass in x, y and z directions
 !integer(kind=int64) :: dropSize, faces, edges, vertices
 integer :: dropSize, faces, edges, vertices
 character(len=200) :: fileEnd, fmtstr
-integer, dimension(3), parameter :: nt = (/nxt,nyt,nzt/)
 integer(hid_t) :: file_id, dset_id
 integer(hsize_t) :: dims(3)=(/nxt,nyt,nzt/),  dims1d(1)=(/1/) 
 complex, dimension(nxt/2+1,nyt,nzt) :: cHat,chemPotHat,dxChemPotHat,dyChemPotHat,dzChemPotHat
 complex, dimension(nxt/2+1,nyt,nzt) :: surfFXHat,surfFYHat,surfFZHat,uHat,vHat,wHat
 real, dimension(0:nzt/2) :: FSpec,ESpec
 type(C_PTR)  :: plan, plan_inverse
-write(*,'(1x,a)') '                 starting number of drops calculation                       '
+write(*,'(1x,a)') 'starting number of drops calculation                       '
 ! Open the file (read-only)
 call h5open_f(error)
 call h5fopen_f("/home/alberto.velamartin/drop_time/we_10/run_break_009/field.015.h5", &
@@ -78,6 +80,9 @@ call h5fclose_f(file_id, error)
 u=u*lx/nxt
 v=v*ly/nyt
 w=w*lz/nxt
+vel(:,:,:,1)=u
+vel(:,:,:,2)=v
+vel(:,:,:,3)=w
 plan        =fftwf_plan_dft_r2c_3d(nzt, nyt, nxt, phase, cHat, FFTW_ESTIMATE)
 plan_inverse=fftwf_plan_dft_c2r_3d(nzt, nyt, nxt, cHat, phase, FFTW_ESTIMATE)
 call fftwf_execute_dft_r2c(plan, phase, cHat)
@@ -230,8 +235,6 @@ open(MoInU,file='./output/MoInDropsT'//trim(fileEnd),access='append',form='forma
 close(MoInU,status='keep')
 open(topoU,file='./output/topoDropsT'//trim(fileEnd),access='append',form='formatted',status="REPLACE")
 close(topoU,status='keep')
-dropPos=0.0
-dropVel=0.0
 do direc=1,3
   allocate(hist(direc)%v(nt(direc)))
 enddo
@@ -270,8 +273,6 @@ do k=1,nzt
     enddo
   enddo
 enddo 
-write(*,*) "invSize", invSize
-write(*,*) "hist1", hist(1)%v
 dropPos=0.0
 last0=0
 last1=0
@@ -490,14 +491,19 @@ do direc=1,3
   do mom=1,maxMom
     dropPos(mom,direc)=dropPos(mom,direc) * ( l(direc)/nt(direc) )**mom
   enddo
+  boxFron(direc) = modulo( dropPos(1,direc)+boxWid/2, l(direc))
+  iBoxFron(direc) = nint(boxFron(direc) * nt(direc) / l(direc))
+  boxBack(direc) = modulo( dropPos(1,direc)-boxWid/2, l(direc))
+  iBoxBack(direc) = nint(boxBack(direc) * nt(direc) / l(direc))
 enddo
+write(*,*) 'boxFron iBoxFron', boxFron, iBoxFron
+write(*,*) 'boxBack iBoxBack', boxBack, iBoxBack
 !Calculate eigenvalues of moment of inertia
 if(last0(1).eq.0.or.last0(2).eq.0.or.last0(3).eq.0) then
   write(*,*) 'drop spans all of domain, deformation is undefined'
   deformation=-1.0
 else
-  !call DSYEV("N","U",3,MoI,3,eiVals,work,8,error)
-  call SSYEV("N","U",3,MoI,3,eiVals,work,8,error)
+  call SSYEV("V","U",3,MoI,3,eiVals,work,8,error)
   if (error.ne.0) write(*,*) 'dropSize', dropSize, 'eiVals', eiVals
   deformation=sqrt(eiVals(3)/eiVals(1))
 endif
@@ -513,8 +519,9 @@ open(veloU,file='./output/veloDropsT'//trim(fileEnd),access='append',form='forma
   write(veloU,fmtstr) dropSize,(dropVel(mom,:),mom=1,maxMom)
 close(veloU,status='keep')
 open(MoInU,file='./output/MoInDropsT'//trim(fileEnd),access='append',form='formatted',status='old')
-  write(MoInU,'(i16,9ES16.7E3,6i16,2ES16.7E3)') dropSize,(eiVals(i),i=1,3),&
-    MoI(1,1),MoI(1,2),MoI(1,3),MoI(2,2),MoI(2,3),MoI(3,3),last0(:),last1(:),kurInv,kurInvSq
+  write(MoInU,'(12ES16.7E3)') eiVals, MoI
+  !write(MoInU,'(i16,9ES16.7E3,6i16,2ES16.7E3)') dropSize,(eiVals(i),i=1,3),&
+  !  MoI(1,1),MoI(1,2),MoI(1,3),MoI(2,2),MoI(2,3),MoI(3,3),last0(:),last1(:),kurInv,kurInvSq
 close(MoInU,status='keep')
 open(topoU,file='./output/topoDropsT'//trim(fileEnd),access='append',form='formatted',status='old')
   write(topoU,'(5i16)') dropSize,vertices,edges,faces,genus
