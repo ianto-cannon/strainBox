@@ -12,7 +12,7 @@ end type ragged_array
 character(len=200) :: filename
 real :: modnor
 integer,parameter :: maxMom=2
-integer,parameter :: nxt=256, nyt=256, nzt=256, boxWid=nzt/6
+integer,parameter :: nxt=256, nyt=256, nzt=256, boxWid=nint(nzt/10.)
 integer, dimension(3), parameter :: nt = (/nxt,nyt,nzt/)
 real, parameter :: pi=3.14159265358979
 real,parameter :: lx=2*pi, ly=2*pi, lz=2*pi
@@ -27,9 +27,9 @@ integer, dimension(0:1,0:1,0:1) :: paint, neigh
 integer, dimension(3)  :: last0,last1,pos
 integer :: i,j,k,ip,jp,kp,iq,jq,kq,iShifted,mom,ii,jj,ky,kz,im,jm,km
 integer :: cols,paintIt,faceOnCorner,genus,onInt,error,intR,nVels,ios
-integer :: statU,posiU,veloU,MoInU,counU,topoU,straU,dVelU,listU,specU,forcU,vortU
+integer :: statU,posiU,veloU,MoInU,topoU,straU,dVelU,listU,specU,forcU,vortU
 real, dimension(maxMom,3) :: dropPos, dropVel
-real, dimension(3) :: MoIEiVals, dVeldx, strainEiVals, dVeldxEiVals, vort
+real, dimension(3) :: MoIEiVals, dVeldx, strainEiVals, vort
 real, dimension(3,3) :: MoI, dVeldxBox, strainBox
 real :: diag, deformation, dropArea, dA, Cn, r, time, work(8), We, res
 real :: maxNor, kurMean, kurStdDev, kurInv, kurInvSq, invSize, QInva, RInva
@@ -61,7 +61,9 @@ open(newunit=topoU,file='./output/topoDrops'//trim(fileEnd),access='append',form
 open(newunit=specU,file='./output/ESpec'//trim(fileEnd),access='append',form='formatted',status="REPLACE")
 open(newunit=forcU,file='./output/FSpec'//trim(fileEnd),access='append',form='formatted',status="REPLACE")
 open(newunit=vortU,file='./output/vortBox'//trim(fileEnd),access='append',form='formatted',status="REPLACE")
-call system("ls /home/alberto.velamartin/drop_time/we_05/run_break_197/field*.h5 > file_list.txt")
+!call system("ls /home/alberto.velamartin/drop_time/we_05/run_break_197/field*.h5 > file_list.txt")
+!call system("ls /home/alberto.velamartin/drop_time/we_05/run_break_197/field.160.h5 > file_list.txt")
+call system("ls /home/alberto.velamartin/drop_time/we_05/run_break_197/field.*90.h5 > file_list.txt")
 !Open the generated file list
 open(newunit=listU, file="file_list.txt", status="old", action="read")
 !Loop through file names
@@ -104,6 +106,10 @@ do
   vel(1,:,:,:)=u
   vel(2,:,:,:)=v
   vel(3,:,:,:)=w
+  !write(*,*)'E',0.5*sum(vel**2)/nzt**3
+  write(*,*)'rmsVel',sqrt(sum(vel**2)/nzt**3/3)
+  !write(*,*)'maxVelE',1.5*maxval(vel)**2
+  write(*,*)'maxVel',maxval(vel)
   plan        =fftwf_plan_dft_r2c_3d(nzt, nyt, nxt, phase, cHat, FFTW_ESTIMATE)
   plan_inverse=fftwf_plan_dft_c2r_3d(nzt, nyt, nxt, cHat, phase, FFTW_ESTIMATE)
   call fftwf_execute_dft_r2c(plan, phase, cHat)
@@ -508,10 +514,14 @@ do
     do j = pos(2)-boxWid, pos(2)+boxWid
       jp = mod(j-1, nyt) + 1
       nVels = nVels + 1
-      dVeldx(:) = (vel(:,ip,jp,kp) - vel(:,im,jp,kp)) / dx / boxWid
+      !dVeldx(:) = (vel(:,ip,jp,kp) - vel(:,im,jp,kp)) / dx / boxWid
+      dVeldx(:) = vel(:,ip,jp,kp)
       dVeldxBox(:,jj) = dVeldxBox(:,jj) + ( dVeldx(:) - dVeldxBox(:,jj) ) / nVels
     enddo
   enddo
+  write(*,*) 'nVels',nVels
+  write(*,*) 'dVeldx',dVeldx
+  write(*,*) 'dVeldxBox',dVeldxBox
   jj=2
   jp = pos(jj) + boxWid
   jp = mod(jp-1, nt(jj)) + 1
@@ -523,7 +533,8 @@ do
     do i = pos(1)-boxWid, pos(1)+boxWid
       ip = mod(i-1, nxt) + 1
       nVels = nVels + 1
-      dVeldx(:) = (vel(:,ip,jp,kp) - vel(:,ip,jm,kp)) / dy / boxWid
+      !dVeldx(:) = (vel(:,ip,jp,kp) - vel(:,ip,jm,kp)) / dy / boxWid
+      dVeldx(:) = vel(:,ip,jp,kp)
       dVeldxBox(:,jj) = dVeldxBox(:,jj) + ( dVeldx(:) - dVeldxBox(:,jj) ) / nVels
     enddo
   enddo
@@ -538,7 +549,8 @@ do
     do i = pos(1)-boxWid, pos(1)+boxWid
       ip = mod(i-1, nxt) + 1
       nVels = nVels + 1
-      dVeldx(:) = (vel(:,ip,jp,kp) - vel(:,ip,jp,km)) / dz / boxWid
+      !dVeldx(:) = (vel(:,ip,jp,kp) - vel(:,ip,jp,km)) / dz / boxWid
+      dVeldx(:) = vel(:,ip,jp,kp)
       dVeldxBox(:,jj) = dVeldxBox(:,jj) + ( dVeldx(:) - dVeldxBox(:,jj) ) / nVels
     enddo
   enddo
@@ -547,9 +559,6 @@ do
       strainBox(ii,jj) = 0.5*(dVeldxBox(ii,jj) + dVeldxBox(jj,ii))
     enddo
   enddo
-  
-
-
   !vorticity = curl(u) = del x u
   vort(1) = dVeldxBox(3,2) - dVeldxBox(2,3)
   vort(2) = dVeldxBox(1,3) - dVeldxBox(3,1)
@@ -565,16 +574,15 @@ do
       enddo
     enddo
   enddo
-
   call SSYEV("V","U",3,strainBox,3,strainEiVals,work,8,error)
-  write(statU,'(ES16.7E3,i16,4ES16.7E3,6i16,2ES16.7E3)') time, dropSize,dropArea,deformation,kurMean,kurStdDev,&
+  write(statU,'(ES16.7E3,i16,4ES16.7E3,6i16,2ES16.7E3)') time,dropSize,dropArea,deformation,kurMean,kurStdDev,&
         last0(:),last1(:),kurInv,kurInvSq
   flush(statU)
   ! generate format string for writing 
-  write(fmtstr,'(a,i0,a)') '(ES16.7E3, i16,',maxMom*3,'(ES16.7E3))'
-  write(posiU,fmtstr) time, dropSize,(dropPos(mom,:),mom=1,maxMom)
+  write(fmtstr,'(a,i0,a)') '(',1+maxMom*3,'(ES16.7E3))'
+  write(posiU,fmtstr) time, (dropPos(mom,:),mom=1,maxMom)
   flush(posiU)
-  write(veloU,fmtstr) time, dropSize,(dropVel(mom,:),mom=1,maxMom)
+  write(veloU,fmtstr) time, (dropVel(mom,:),mom=1,maxMom)
   flush(veloU)
   write(MoInU,'(13ES16.7E3)') time, MoIEiVals, MoI
   flush(MoInU)
@@ -582,7 +590,7 @@ do
   flush(dVelU)
   write(straU,'(13ES16.7E3)') time, strainEiVals, strainBox
   flush(straU)
-  write(topoU,'(ES16.7E3, 5i16)') time, dropSize,vertices,edges,faces,genus
+  write(topoU,'(ES16.7E3, 4i16)') time,vertices,edges,faces,genus
   flush(topoU)
   write(fmtstr,'(a,i0,a)') '(',nzt/2+2,'(ES16.7E3))'
   write(specU,fmtstr) time,ESpec 
