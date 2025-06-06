@@ -31,7 +31,7 @@ integer :: cols,paintIt,faceOnCorner,genus,onInt,ky,kz,im,jm,km,ios
 real, dimension(maxMom,3) :: dropPos, dropVel
 real, dimension(3) :: MoIEiVals, dVeldx, strainEiVals, dVeldxEiVals
 real, dimension(3,3) :: MoI, dVeldxBox, strainBox
-real :: diag, deformation, dropArea, dA, Cn, r, time, work(8)
+real :: diag, deformation, dropArea, dA, Cn, r, time, work(8), We, res
 real :: maxNor, kurMean, kurStdDev, kurInv, kurInvSq, invSize
 type(ragged_array) :: hist(3) !histogram of drop mass in x, y and z directions
 !integer(kind=int64) :: dropSize, faces, edges, vertices
@@ -60,7 +60,7 @@ open(strainU,file='./output/strainBox'//trim(fileEnd),access='append',form='form
 open(topoU,file='./output/topoDropsT'//trim(fileEnd),access='append',form='formatted',status="REPLACE")
 open(specU,file='./output/ESpec'//trim(fileEnd),access='append',form='formatted',status="REPLACE")
 open(forcU,file='./output/FSpec'//trim(fileEnd),access='append',form='formatted',status="REPLACE")
-call system("ls /home/alberto.velamartin/drop_time/we_10/run_break_009/field*.h5 > file_list.txt")
+call system("ls /home/alberto.velamartin/drop_time/we_05/run_break_197/field*.h5 > file_list.txt")
 !Open the generated file list
 open(unit=listU, file="file_list.txt", status="old", action="read")
 !Loop through file names
@@ -74,22 +74,18 @@ do
     call h5dopen_f(file_id, "Cn", dset_id, error)
     call h5dread_f(dset_id, H5T_NATIVE_REAL, Cn, dims1d, error)
     call h5dclose_f(dset_id, error)
-    write(*,*) 'Cn', Cn
     call h5dopen_f(file_id, "We", dset_id, error)
-    call h5dread_f(dset_id, H5T_NATIVE_REAL, Cn, dims1d, error)
+    call h5dread_f(dset_id, H5T_NATIVE_REAL, We, dims1d, error)
     call h5dclose_f(dset_id, error)
-    write(*,*) 'We', Cn
     call h5dopen_f(file_id, "c", dset_id, error)
     call h5dread_f(dset_id, H5T_NATIVE_REAL, phase, dims, error)
     call h5dclose_f(dset_id, error)
     call h5dopen_f(file_id, "res", dset_id, error)
-    call h5dread_f(dset_id, H5T_NATIVE_REAL, Cn, dims1d, error)
+    call h5dread_f(dset_id, H5T_NATIVE_REAL, res, dims1d, error)
     call h5dclose_f(dset_id, error)
-    write(*,*) 'res', Cn
     call h5dopen_f(file_id, "time", dset_id, error)
     call h5dread_f(dset_id, H5T_NATIVE_REAL, time, dims1d, error)
     call h5dclose_f(dset_id, error)
-    write(*,*) 'time', time
     call h5dopen_f(file_id, "u", dset_id, error)
     call h5dread_f(dset_id, H5T_NATIVE_REAL, u, dims, error)
     call h5dclose_f(dset_id, error)
@@ -155,7 +151,6 @@ do
   call fftwf_execute_dft_r2c(plan, u, uHat)
   call fftwf_execute_dft_r2c(plan, v, vHat)
   call fftwf_execute_dft_r2c(plan, w, wHat)
-  write(*,*)'E',0.5*sum(u**2+v**2+w**2)
   ESpec=0.0
   FSpec=0.0
   do k=1,nzt
@@ -546,7 +541,6 @@ do
       dVeldxBox(:,jj) = dVeldxBox(:,jj) + ( dVeldx(:) - dVeldxBox(:,jj) ) / nVels
     enddo
   enddo
-  write(*,*) 'dVeldxBox', dVeldxBox
   do ii=1,3
     do jj=1,3
       strainBox(ii,jj) = 0.5*(dVeldxBox(ii,jj) + dVeldxBox(jj,ii))
@@ -554,7 +548,7 @@ do
   enddo
   call SSYEV("V","U",3,dVeldxBox,3,dVeldxEiVals,work,8,error)
   call SSYEV("V","U",3,strainBox,3,strainEiVals,work,8,error)
-  write(statU,'(i16,4ES16.7E3,6i16,2ES16.7E3)') time, dropSize,dropArea,deformation,kurMean,kurStdDev,&
+  write(statU,'(ES16.7E3,i16,4ES16.7E3,6i16,2ES16.7E3)') time, dropSize,dropArea,deformation,kurMean,kurStdDev,&
         last0(:),last1(:),kurInv,kurInvSq
   flush(statU)
   ! generate format string for writing 
@@ -571,7 +565,7 @@ do
   flush(strainU)
   write(topoU,'(ES16.7E3, 5i16)') time, dropSize,vertices,edges,faces,genus
   flush(topoU)
-  write(fmtstr,'(a,i0,a)') '(,',maxMom*3,'(ES16.7E3))'
+  write(fmtstr,'(a,i0,a)') '(',nzt/2+2,'(ES16.7E3))'
   write(specU,fmtstr) time,ESpec 
   flush(specU)
   write(forcU,fmtstr) time,FSpec 
