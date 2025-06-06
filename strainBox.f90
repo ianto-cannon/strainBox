@@ -546,7 +546,62 @@ do
       strainBox(ii,jj) = 0.5*(dVeldxBox(ii,jj) + dVeldxBox(jj,ii))
     enddo
   enddo
-  call SSYEV("V","U",3,dVeldxBox,3,dVeldxEiVals,work,8,error)
+  
+
+
+  !vorticity = curl(u) = del x u
+  vort(1)%f(i,j,k) = A(3,2) - A(2,3)
+  vort(2)%f(i,j,k) = A(1,3) - A(3,1)
+  vort(3)%f(i,j,k) = A(2,1) - A(1,2)
+  SS = 0
+  do jj = 1,3
+    ib1=i; jb1=j; kb1=k
+    if(jj.eq.1) ib1=i-1            
+    if(jj.eq.2) jb1=j-1
+    if(jj.eq.3) kb1=j-1
+    !helicity = vorticity.u,   with velocity at cell centre
+    heli%f(i,j,k) = heli%f(i,j,k) + 0.5*(vel(jj)%f(i,j,k) + vel(jj)%f(ib1,jb1,kb1)) * vort(jj)%f(i,j,k)
+    !power of the viscous term in NS equation
+    visPower%f(i,j,k) = visPower%f(i,j,k) - vis*vel(jj)%f(i,j,k)*Lap(jj)
+    do ii = 1,3
+      !Q citerion as equation (4) from Paul22roleOfBreakup
+      Q%f(i,j,k) = Q%f(i,j,k) - 0.5*A(ii,jj)*A(jj,ii)
+      !sum of strain rate S:S = Sij*Sij where Sij=(Aij+Aji)/2
+      SS = SS + 0.5*(A(ii,jj)*A(ii,jj) + A(ii,jj)*A(jj,ii))
+      !enstrophy O:O = Oij*Oij where Oij=(Aij-Aji)/2
+      enst%f(i,j,k) = enst%f(i,j,k) + 0.5*(A(ii,jj)*A(ii,jj) - A(ii,jj)*A(jj,ii))
+      !symmetric part of velocity gradient, aka strain rate
+      S(ii,jj) = 0.5*(A(ii,jj) + A(jj,ii))
+      do kk = 1,3
+        !Third invariant of velocty grad tensor as equation (5) from Paul22roleOfBreakup
+        !Assumes incompressibility so that 3*det(A)=tr(A^3)
+        R%f(i,j,k) = R%f(i,j,k) - (1.0/3.0)*A(ii,jj)*A(jj,kk)*A(kk,ii) 
+      enddo
+    enddo
+  enddo
+  
+
+
+
+
+
+subroutine sgeev        (       character       JOBVL,
+character       JOBVR,
+integer         N,
+real, dimension( lda, * )       A,
+integer         LDA,
+real, dimension( * )    WR,
+real, dimension( * )    WI,
+real, dimension( ldvl, * )      VL,
+integer         LDVL,
+real, dimension( ldvr, * )      VR,
+integer         LDVR,
+real, dimension( * )    WORK,
+integer         LWORK,
+integer         INFO 
+)       
+
+  call SGEEV("N","V",3,dVeldxBox,3,dVeldxEiValsRe,dVeldxEiValsIm,work,8,error)
   call SSYEV("V","U",3,strainBox,3,strainEiVals,work,8,error)
   write(statU,'(ES16.7E3,i16,4ES16.7E3,6i16,2ES16.7E3)') time, dropSize,dropArea,deformation,kurMean,kurStdDev,&
         last0(:),last1(:),kurInv,kurInvSq
