@@ -11,8 +11,7 @@ type ragged_array
 end type ragged_array
 character(len=200) :: filename
 real :: modnor
-integer,parameter :: maxMom=2,statU=41,posiU=42,veloU=43,MoInU=44,forcU=51
-integer,parameter :: counU=45,topoU=46,strainU=47,dVeldxU=48,listU=49,specU=50
+integer,parameter :: maxMom=2
 integer,parameter :: nxt=256, nyt=256, nzt=256, boxWid=nzt/6
 integer, dimension(3), parameter :: nt = (/nxt,nyt,nzt/)
 real, parameter :: pi=3.14159265358979
@@ -26,13 +25,14 @@ real, dimension(3,nxt,nyt,nzt) :: nor, vel
 integer, dimension(nxt,nyt,nzt) :: s_drop
 integer, dimension(0:1,0:1,0:1) :: paint, neigh
 integer, dimension(3)  :: last0,last1,pos
-integer :: i,j,k,ip,jp,kp,iq,jq,kq,iShifted,mom,ii,jj,error,intR,nVels
-integer :: cols,paintIt,faceOnCorner,genus,onInt,ky,kz,im,jm,km,ios
+integer :: i,j,k,ip,jp,kp,iq,jq,kq,iShifted,mom,ii,jj,ky,kz,im,jm,km
+integer :: cols,paintIt,faceOnCorner,genus,onInt,error,intR,nVels,ios
+integer :: statU,posiU,veloU,MoInU,counU,topoU,straU,dVelU,listU,specU,forcU,vortU
 real, dimension(maxMom,3) :: dropPos, dropVel
-real, dimension(3) :: MoIEiVals, dVeldx, strainEiVals, dVeldxEiVals
+real, dimension(3) :: MoIEiVals, dVeldx, strainEiVals, dVeldxEiVals, vort
 real, dimension(3,3) :: MoI, dVeldxBox, strainBox
 real :: diag, deformation, dropArea, dA, Cn, r, time, work(8), We, res
-real :: maxNor, kurMean, kurStdDev, kurInv, kurInvSq, invSize
+real :: maxNor, kurMean, kurStdDev, kurInv, kurInvSq, invSize, QInva, RInva
 type(ragged_array) :: hist(3) !histogram of drop mass in x, y and z directions
 !integer(kind=int64) :: dropSize, faces, edges, vertices
 integer :: dropSize, faces, edges, vertices
@@ -50,19 +50,20 @@ enddo
 hist(1)%indexName='1'
 hist(2)%indexName='2'
 hist(3)%indexName='3'
-fileEnd='.dat'
-open(statU,file='./output/statDropsT'//trim(fileEnd),access='append',form='formatted',status="REPLACE")
-open(posiU,file='./output/posiDropsT'//trim(fileEnd),access='append',form='formatted',status="REPLACE")
-open(veloU,file='./output/veloDropsT'//trim(fileEnd),access='append',form='formatted',status="REPLACE")
-open(MoInU,file='./output/MoInDropsT'//trim(fileEnd),access='append',form='formatted',status="REPLACE")
-open(dVeldxU,file='./output/dVeldxBox'//trim(fileEnd),access='append',form='formatted',status="REPLACE")
-open(strainU,file='./output/strainBox'//trim(fileEnd),access='append',form='formatted',status="REPLACE")
-open(topoU,file='./output/topoDropsT'//trim(fileEnd),access='append',form='formatted',status="REPLACE")
-open(specU,file='./output/ESpec'//trim(fileEnd),access='append',form='formatted',status="REPLACE")
-open(forcU,file='./output/FSpec'//trim(fileEnd),access='append',form='formatted',status="REPLACE")
+fileEnd='.txt'
+open(newunit=statU,file='./output/statDrops'//trim(fileEnd),access='append',form='formatted',status="REPLACE")
+open(newunit=posiU,file='./output/posiDrops'//trim(fileEnd),access='append',form='formatted',status="REPLACE")
+open(newunit=veloU,file='./output/veloDrops'//trim(fileEnd),access='append',form='formatted',status="REPLACE")
+open(newunit=MoInU,file='./output/MoInDrops'//trim(fileEnd),access='append',form='formatted',status="REPLACE")
+open(newunit=dVelU,file='./output/dVeldxBox'//trim(fileEnd),access='append',form='formatted',status="REPLACE")
+open(newunit=straU,file='./output/strainBox'//trim(fileEnd),access='append',form='formatted',status="REPLACE")
+open(newunit=topoU,file='./output/topoDrops'//trim(fileEnd),access='append',form='formatted',status="REPLACE")
+open(newunit=specU,file='./output/ESpec'//trim(fileEnd),access='append',form='formatted',status="REPLACE")
+open(newunit=forcU,file='./output/FSpec'//trim(fileEnd),access='append',form='formatted',status="REPLACE")
+open(newunit=vortU,file='./output/vortBox'//trim(fileEnd),access='append',form='formatted',status="REPLACE")
 call system("ls /home/alberto.velamartin/drop_time/we_05/run_break_197/field*.h5 > file_list.txt")
 !Open the generated file list
-open(unit=listU, file="file_list.txt", status="old", action="read")
+open(newunit=listU, file="file_list.txt", status="old", action="read")
 !Loop through file names
 do
   read(listU, '(A)', iostat=ios) filename
@@ -550,58 +551,21 @@ do
 
 
   !vorticity = curl(u) = del x u
-  vort(1)%f(i,j,k) = A(3,2) - A(2,3)
-  vort(2)%f(i,j,k) = A(1,3) - A(3,1)
-  vort(3)%f(i,j,k) = A(2,1) - A(1,2)
-  SS = 0
-  do jj = 1,3
-    ib1=i; jb1=j; kb1=k
-    if(jj.eq.1) ib1=i-1            
-    if(jj.eq.2) jb1=j-1
-    if(jj.eq.3) kb1=j-1
-    !helicity = vorticity.u,   with velocity at cell centre
-    heli%f(i,j,k) = heli%f(i,j,k) + 0.5*(vel(jj)%f(i,j,k) + vel(jj)%f(ib1,jb1,kb1)) * vort(jj)%f(i,j,k)
-    !power of the viscous term in NS equation
-    visPower%f(i,j,k) = visPower%f(i,j,k) - vis*vel(jj)%f(i,j,k)*Lap(jj)
-    do ii = 1,3
+  vort(1) = dVeldxBox(3,2) - dVeldxBox(2,3)
+  vort(2) = dVeldxBox(1,3) - dVeldxBox(3,1)
+  vort(3) = dVeldxBox(2,1) - dVeldxBox(1,2)
+  do j = 1,3
+    do i = 1,3
       !Q citerion as equation (4) from Paul22roleOfBreakup
-      Q%f(i,j,k) = Q%f(i,j,k) - 0.5*A(ii,jj)*A(jj,ii)
-      !sum of strain rate S:S = Sij*Sij where Sij=(Aij+Aji)/2
-      SS = SS + 0.5*(A(ii,jj)*A(ii,jj) + A(ii,jj)*A(jj,ii))
-      !enstrophy O:O = Oij*Oij where Oij=(Aij-Aji)/2
-      enst%f(i,j,k) = enst%f(i,j,k) + 0.5*(A(ii,jj)*A(ii,jj) - A(ii,jj)*A(jj,ii))
-      !symmetric part of velocity gradient, aka strain rate
-      S(ii,jj) = 0.5*(A(ii,jj) + A(jj,ii))
-      do kk = 1,3
+      QInva = QInva - 0.5*dVeldxBox(i,j)*dVeldxBox(j,i)
+      do k = 1,3
         !Third invariant of velocty grad tensor as equation (5) from Paul22roleOfBreakup
-        !Assumes incompressibility so that 3*det(A)=tr(A^3)
-        R%f(i,j,k) = R%f(i,j,k) - (1.0/3.0)*A(ii,jj)*A(jj,kk)*A(kk,ii) 
+        !Assumes incompressibility so that 3*det(dVeldxBox)=tr(dVeldxBox^3)
+        RInva = RInva - (1.0/3.0)*dVeldxBox(i,j)*dVeldxBox(j,k)*dVeldxBox(k,i) 
       enddo
     enddo
   enddo
-  
 
-
-
-
-
-subroutine sgeev        (       character       JOBVL,
-character       JOBVR,
-integer         N,
-real, dimension( lda, * )       A,
-integer         LDA,
-real, dimension( * )    WR,
-real, dimension( * )    WI,
-real, dimension( ldvl, * )      VL,
-integer         LDVL,
-real, dimension( ldvr, * )      VR,
-integer         LDVR,
-real, dimension( * )    WORK,
-integer         LWORK,
-integer         INFO 
-)       
-
-  call SGEEV("N","V",3,dVeldxBox,3,dVeldxEiValsRe,dVeldxEiValsIm,work,8,error)
   call SSYEV("V","U",3,strainBox,3,strainEiVals,work,8,error)
   write(statU,'(ES16.7E3,i16,4ES16.7E3,6i16,2ES16.7E3)') time, dropSize,dropArea,deformation,kurMean,kurStdDev,&
         last0(:),last1(:),kurInv,kurInvSq
@@ -614,19 +578,18 @@ integer         INFO
   flush(veloU)
   write(MoInU,'(13ES16.7E3)') time, MoIEiVals, MoI
   flush(MoInU)
-  write(dVeldxU,'(13ES16.7E3)') time, dVeldxEiVals, dVeldxBox
-  flush(dVeldxU)
-  write(strainU,'(13ES16.7E3)') time, strainEiVals, strainBox
-  flush(strainU)
+  write(dVelU,'(13ES16.7E3)') time, QInva, RInva, dVeldxBox
+  flush(dVelU)
+  write(straU,'(13ES16.7E3)') time, strainEiVals, strainBox
+  flush(straU)
   write(topoU,'(ES16.7E3, 5i16)') time, dropSize,vertices,edges,faces,genus
   flush(topoU)
   write(fmtstr,'(a,i0,a)') '(',nzt/2+2,'(ES16.7E3))'
   write(specU,fmtstr) time,ESpec 
   flush(specU)
   write(forcU,fmtstr) time,FSpec 
-  !  do i=0,nzt/2
-  !    write(30,'(3E23.15)') 1.0*i,ESpec(i),FSpec(i)
-  !close(30,status='keep')
+  write(vortU,'(4ES16.7E3)') time, vort
+  flush(vortU)
 enddo
 do ii=1,3
   deallocate(hist(ii)%v)
@@ -634,13 +597,14 @@ enddo
 close(posiU,status='keep')
 close(veloU,status='keep')
 close(MoInU,status='keep')
-close(dVeldxU,status='keep')
-close(strainU,status='keep')
+close(dVelU,status='keep')
+close(straU,status='keep')
 close(statU,status='keep')
 close(topoU,status='keep')
 close(specU,status='keep')
 close(forcU,status='keep')
 close(listU)
+close(vortU)
 call system("rm file_list.txt")
 write(6,*) 'This is the end'
 end program strain_box
