@@ -61,9 +61,7 @@ open(newunit=topoU,file='./output/topoDrops'//trim(fileEnd),access='append',form
 open(newunit=specU,file='./output/ESpec'//trim(fileEnd),access='append',form='formatted',status="REPLACE")
 open(newunit=forcU,file='./output/FSpec'//trim(fileEnd),access='append',form='formatted',status="REPLACE")
 open(newunit=vortU,file='./output/vortBox'//trim(fileEnd),access='append',form='formatted',status="REPLACE")
-!call system("ls /home/alberto.velamartin/drop_time/we_05/run_break_197/field*.h5 > file_list.txt")
-!call system("ls /home/alberto.velamartin/drop_time/we_05/run_break_197/field.160.h5 > file_list.txt")
-call system("ls /home/alberto.velamartin/drop_time/we_05/run_break_197/field.*90.h5 > file_list.txt")
+call system("ls /home/alberto.velamartin/drop_time/we_05/run_break_197/field*.h5 > file_list.txt")
 !Open the generated file list
 open(newunit=listU, file="file_list.txt", status="old", action="read")
 !Loop through file names
@@ -106,10 +104,7 @@ do
   vel(1,:,:,:)=u
   vel(2,:,:,:)=v
   vel(3,:,:,:)=w
-  !write(*,*)'E',0.5*sum(vel**2)/nzt**3
-  write(*,*)'rmsVel',sqrt(sum(vel**2)/nzt**3/3)
-  !write(*,*)'maxVelE',1.5*maxval(vel)**2
-  write(*,*)'maxVel',maxval(vel)
+  !write(*,*)'rmsVel',sqrt(sum(vel**2)/nzt**3/3)
   plan        =fftwf_plan_dft_r2c_3d(nzt, nyt, nxt, phase, cHat, FFTW_ESTIMATE)
   plan_inverse=fftwf_plan_dft_c2r_3d(nzt, nyt, nxt, cHat, phase, FFTW_ESTIMATE)
   call fftwf_execute_dft_r2c(plan, phase, cHat)
@@ -471,7 +466,7 @@ do
   enddo
   !every edge is between two corners so we double counted the edges
   edges = edges/2
-  if(mod(vertices-edges+faces,2).ne.0)then
+  if(modulo(vertices-edges+faces,2).ne.0)then
     write(*,*)'warning: Euler characteristic is odd, v,e,f=',vertices,edges,faces
   endif
   genus = 1-(vertices-edges+faces)/2
@@ -503,54 +498,49 @@ do
     enddo
   enddo
   dVeldxBox=0.0
+  dVeldx=0.0
   jj=1
   ip = pos(1) + boxWid
-  ip = mod(ip-1, nt(jj)) + 1
+  ip = modulo(ip-1, nt(jj)) + 1
   im = pos(1) - boxWid
-  im = mod(im-1, nt(jj)) + 1
+  im = modulo(im-1, nt(jj)) + 1
   nVels = 0
   do k = pos(3)-boxWid, pos(3)+boxWid
-    kp = mod(k-1, nzt) + 1
+    kp = modulo(k-1, nzt) + 1
     do j = pos(2)-boxWid, pos(2)+boxWid
-      jp = mod(j-1, nyt) + 1
+      jp = modulo(j-1, nyt) + 1
       nVels = nVels + 1
-      !dVeldx(:) = (vel(:,ip,jp,kp) - vel(:,im,jp,kp)) / dx / boxWid
-      dVeldx(:) = vel(:,ip,jp,kp)
+      dVeldx(:) = (vel(:,ip,jp,kp) - vel(:,im,jp,kp)) / dx / boxWid
       dVeldxBox(:,jj) = dVeldxBox(:,jj) + ( dVeldx(:) - dVeldxBox(:,jj) ) / nVels
     enddo
   enddo
-  write(*,*) 'nVels',nVels
-  write(*,*) 'dVeldx',dVeldx
-  write(*,*) 'dVeldxBox',dVeldxBox
   jj=2
   jp = pos(jj) + boxWid
-  jp = mod(jp-1, nt(jj)) + 1
+  jp = modulo(jp-1, nt(jj)) + 1
   jm = pos(jj) - boxWid
-  jm = mod(jm-1, nt(jj)) + 1
+  jm = modulo(jm-1, nt(jj)) + 1
   nVels = 0
   do k = pos(3)-boxWid, pos(3)+boxWid
-    kp = mod(k-1, nzt) + 1
+    kp = modulo(k-1, nzt) + 1
     do i = pos(1)-boxWid, pos(1)+boxWid
-      ip = mod(i-1, nxt) + 1
+      ip = modulo(i-1, nxt) + 1
       nVels = nVels + 1
-      !dVeldx(:) = (vel(:,ip,jp,kp) - vel(:,ip,jm,kp)) / dy / boxWid
-      dVeldx(:) = vel(:,ip,jp,kp)
+      dVeldx(:) = (vel(:,ip,jp,kp) - vel(:,ip,jm,kp)) / dy / boxWid
       dVeldxBox(:,jj) = dVeldxBox(:,jj) + ( dVeldx(:) - dVeldxBox(:,jj) ) / nVels
     enddo
   enddo
   jj=3
   kp = pos(jj) + boxWid
-  kp = mod(kp-1, nt(jj)) + 1
+  kp = modulo(kp-1, nt(jj)) + 1
   km = pos(jj) - boxWid
-  km = mod(km-1, nt(jj)) + 1
+  km = modulo(km-1, nt(jj)) + 1
   nVels = 0
   do j = pos(2)-boxWid, pos(2)+boxWid
-    jp = mod(j-1, nyt) + 1
+    jp = modulo(j-1, nyt) + 1
     do i = pos(1)-boxWid, pos(1)+boxWid
-      ip = mod(i-1, nxt) + 1
+      ip = modulo(i-1, nxt) + 1
       nVels = nVels + 1
-      !dVeldx(:) = (vel(:,ip,jp,kp) - vel(:,ip,jp,km)) / dz / boxWid
-      dVeldx(:) = vel(:,ip,jp,kp)
+      dVeldx(:) = (vel(:,ip,jp,kp) - vel(:,ip,jp,km)) / dz / boxWid
       dVeldxBox(:,jj) = dVeldxBox(:,jj) + ( dVeldx(:) - dVeldxBox(:,jj) ) / nVels
     enddo
   enddo
