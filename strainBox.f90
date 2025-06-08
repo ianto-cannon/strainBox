@@ -31,7 +31,7 @@ integer :: statU,posiU,veloU,MoInU,topoU,straU,dVelU,listU,specU,forcU,vortU
 real, dimension(maxMom,3) :: dropPos, dropVel
 real, dimension(3) :: MoIEiVals, dVeldx, strainEiVals, vort
 real, dimension(3,3) :: MoI, dVeldxBox, strainBox
-real :: diag, deformation, dropArea, dA, Cn, r, time, work(8), We, res
+real :: diag, deformation, dropArea, dA, Cn, r, time, work(8), We, res, div1
 real :: maxNor, kurMean, kurStdDev, kurInv, kurInvSq, invSize, QInva, RInva
 type(ragged_array) :: hist(3) !histogram of drop mass in x, y and z directions
 !integer(kind=int64) :: dropSize, faces, edges, vertices
@@ -68,7 +68,8 @@ open(newunit=listU, file="file_list.txt", status="old", action="read")
 do
   read(listU, '(A)', iostat=ios) filename
   if (ios /= 0) exit
-  print *, trim(filename)
+  write(6,'(A)') trim(filename)
+  flush(6)
   ! Open the file (read-only)
   call h5open_f(error)
   call h5fopen_f(filename, H5F_ACC_RDONLY_F, file_id, error)
@@ -101,10 +102,22 @@ do
   u=u*lx/nxt
   v=v*ly/nyt
   w=w*lz/nxt
+  div1=u(2,1,1)-u(1,1,1)+&
+       v(1,2,1)-v(1,1,1)+&
+       w(1,1,2)-w(1,1,1)
+  write(*,*) 'div1',div1
+  div1=u(1,1,2)-u(1,1,1)+&
+       v(1,2,1)-v(1,1,1)+&
+       w(2,1,1)-w(1,1,1)
+  write(*,*) 'div2',div1
+  div1=u(2,2,3)-u(2,2,1)+&
+       v(2,3,2)-v(2,1,2)+&
+       w(3,2,2)-w(1,2,2)
+  write(*,*) 'div3',div1
   vel(1,:,:,:)=u
   vel(2,:,:,:)=v
   vel(3,:,:,:)=w
-  !write(*,*)'rmsVel',sqrt(sum(vel**2)/nzt**3/3)
+  write(*,*)'rmsVel',sqrt(sum(vel**2)/nzt**3/3)
   plan        =fftwf_plan_dft_r2c_3d(nzt, nyt, nxt, phase, cHat, FFTW_ESTIMATE)
   plan_inverse=fftwf_plan_dft_c2r_3d(nzt, nyt, nxt, cHat, phase, FFTW_ESTIMATE)
   call fftwf_execute_dft_r2c(plan, phase, cHat)
@@ -155,6 +168,7 @@ do
   call fftwf_execute_dft_r2c(plan, w, wHat)
   ESpec=0.0
   FSpec=0.0
+  vort=0.0
   do k=1,nzt
     kz=k-1
     if (kz.gt.nzt/2) kz=kz-nzt
@@ -175,6 +189,8 @@ do
                                     ( real( conjg(uHat(i,j,k)) * surfFXHat(i,j,k) )+ &
                                       real( conjg(vHat(i,j,k)) * surfFYHat(i,j,k) )+ &
                                       real( conjg(wHat(i,j,k)) * surfFZHat(i,j,k) ))
+        vort(1) = max(vort(1), abs((i-1)*uHat(i,j,k)+ky*vHat(i,j,k) + kz*wHat(i,j,k)))
+        vort(3) = max(vort(3), abs(kz*uHat(i,j,k)  + ky*vHat(i,j,k) +(i-1)*wHat(i,j,k)))
         endif
       enddo
     enddo
@@ -499,6 +515,7 @@ do
   enddo
   dVeldxBox=0.0
   dVeldx=0.0
+  kurMean=0.0
   jj=1
   ip = pos(1) + boxWid
   ip = modulo(ip-1, nt(jj)) + 1
@@ -512,6 +529,7 @@ do
       nVels = nVels + 1
       dVeldx(:) = (vel(:,ip,jp,kp) - vel(:,im,jp,kp)) / dx / boxWid
       dVeldxBox(:,jj) = dVeldxBox(:,jj) + ( dVeldx(:) - dVeldxBox(:,jj) ) / nVels
+      kurMean = kurMean + ( vel(jj,ip,jp,kp) - vel(jj,im,jp,kp) - kurMean ) / nVels
     enddo
   enddo
   jj=2
@@ -527,6 +545,7 @@ do
       nVels = nVels + 1
       dVeldx(:) = (vel(:,ip,jp,kp) - vel(:,ip,jm,kp)) / dy / boxWid
       dVeldxBox(:,jj) = dVeldxBox(:,jj) + ( dVeldx(:) - dVeldxBox(:,jj) ) / nVels
+      kurMean = kurMean + ( vel(jj,ip,jp,kp) - vel(jj,ip,jm,kp) - kurMean ) / nVels
     enddo
   enddo
   jj=3
@@ -542,17 +561,30 @@ do
       nVels = nVels + 1
       dVeldx(:) = (vel(:,ip,jp,kp) - vel(:,ip,jp,km)) / dz / boxWid
       dVeldxBox(:,jj) = dVeldxBox(:,jj) + ( dVeldx(:) - dVeldxBox(:,jj) ) / nVels
+      kurMean = kurMean + ( vel(jj,ip,jp,kp) - vel(jj,ip,jp,km) - kurMean ) / nVels
     enddo
   enddo
+  write(*,*) 'kurMean', kurMean
   do ii=1,3
     do jj=1,3
       strainBox(ii,jj) = 0.5*(dVeldxBox(ii,jj) + dVeldxBox(jj,ii))
     enddo
   enddo
   !vorticity = curl(u) = del x u
-  vort(1) = dVeldxBox(3,2) - dVeldxBox(2,3)
-  vort(2) = dVeldxBox(1,3) - dVeldxBox(3,1)
-  vort(3) = dVeldxBox(2,1) - dVeldxBox(1,2)
+  !vort(1) = dVeldxBox(3,2) - dVeldxBox(2,3)
+  !vort(2) = dVeldxBox(1,3) - dVeldxBox(3,1)
+  !vort(3) = dVeldxBox(2,1) - dVeldxBox(1,2)
+  
+  strainBox(1,1) = dVeldxBox(1,1) + dVeldxBox(2,2) + dVeldxBox(3,3)
+  strainBox(1,2) = dVeldxBox(1,1) + dVeldxBox(2,3) + dVeldxBox(3,2)
+  strainBox(1,3) = dVeldxBox(1,2) + dVeldxBox(2,1) + dVeldxBox(3,3)
+  strainBox(2,1) = dVeldxBox(1,2) + dVeldxBox(2,3) + dVeldxBox(3,1)
+  strainBox(2,2) = dVeldxBox(1,3) + dVeldxBox(2,1) + dVeldxBox(3,2)
+  strainBox(2,3) = dVeldxBox(1,3) + dVeldxBox(2,2) + dVeldxBox(3,1)
+  strainBox(3,1) = 1
+  strainBox(3,2) = 2
+  strainBox(3,3) = 3
+  !123 132 213 231 312 321
   do j = 1,3
     do i = 1,3
       !Q citerion as equation (4) from Paul22roleOfBreakup
@@ -564,7 +596,7 @@ do
       enddo
     enddo
   enddo
-  call SSYEV("V","U",3,strainBox,3,strainEiVals,work,8,error)
+  !call SSYEV("V","U",3,strainBox,3,strainEiVals,work,8,error)
   write(statU,'(ES16.7E3,i16,4ES16.7E3,6i16,2ES16.7E3)') time,dropSize,dropArea,deformation,kurMean,kurStdDev,&
         last0(:),last1(:),kurInv,kurInvSq
   flush(statU)
