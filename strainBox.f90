@@ -12,12 +12,12 @@ end type ragged_array
 character(len=200) :: filename
 real :: modnor
 integer,parameter :: maxMom=2
-integer,parameter :: nxt=256, nyt=256, nzt=256, boxWid=nint(nzt/10.)
+integer,parameter :: nxt=256, nyt=256, nzt=256, boxWid=nint(nzt/6.)
 integer, dimension(3), parameter :: nt = (/nxt,nyt,nzt/)
 real, parameter :: pi=3.14159265358979
 real,parameter :: lx=nxt, ly=nyt, lz=nzt
 real, dimension(3), parameter :: l = (/lx,ly,lz/)
-real,parameter :: dx=lx/nxt, dy=ly/nxt, dz=lz/nxt
+real,parameter :: dx=lx/nxt, dy=ly/nyt, dz=lz/nzt
 real, dimension(nxt,nyt,nzt) :: kur,u,v,w,phase,dxxPhase
 real, dimension(nxt,nyt,nzt) :: chemPot,dxChemPot,dyChemPot,dzChemPot,surfFX,surfFY,surfFZ
 real, dimension(3,nxt,nyt,nzt) :: nor, vel
@@ -61,8 +61,8 @@ open(newunit=topoU,file='./output/topoDrops'//trim(fileEnd),access='append',form
 open(newunit=specU,file='./output/ESpec'//trim(fileEnd),access='append',form='formatted',status="REPLACE")
 open(newunit=forcU,file='./output/FSpec'//trim(fileEnd),access='append',form='formatted',status="REPLACE")
 open(newunit=vortU,file='./output/vortBox'//trim(fileEnd),access='append',form='formatted',status="REPLACE")
-!call system("ls /home/alberto.velamartin/drop_time/we_05/run_break_197/field*.h5 > file_list.txt")
-call system("ls /home/alberto.velamartin/drop_time/we_05/run_break_197/field.008.h5 > file_list.txt")
+call system("ls /home/alberto.velamartin/drop_time/we_05/run_break_197/field*.h5 > file_list.txt")
+!call system("ls /home/alberto.velamartin/drop_time/we_05/run_break_197/field.100.h5 > file_list.txt")
 !Open the generated file list
 open(newunit=listU, file="file_list.txt", status="old", action="read")
 !Loop through file names
@@ -75,37 +75,55 @@ do
   call h5open_f(error)
   call h5fopen_f(filename, H5F_ACC_RDONLY_F, file_id, error)
     call h5dopen_f(file_id, "Cn", dset_id, error)
-    call h5dread_f(dset_id, H5T_NATIVE_REAL, Cn, dims1d, error)
+      call h5dread_f(dset_id, H5T_NATIVE_REAL, Cn, dims1d, error)
     call h5dclose_f(dset_id, error)
     call h5dopen_f(file_id, "We", dset_id, error)
-    call h5dread_f(dset_id, H5T_NATIVE_REAL, We, dims1d, error)
+      call h5dread_f(dset_id, H5T_NATIVE_REAL, We, dims1d, error)
     call h5dclose_f(dset_id, error)
     call h5dopen_f(file_id, "c", dset_id, error)
-    call h5dread_f(dset_id, H5T_NATIVE_REAL, phase, dims, error)
+      call h5dread_f(dset_id, H5T_NATIVE_REAL, kur, dims, error)
     call h5dclose_f(dset_id, error)
+    do k=1,nzt
+      do j=1,nyt
+        do i=1,nxt
+          phase(k,j,i) = kur(i,j,k)
+        enddo
+      enddo
+    enddo
     call h5dopen_f(file_id, "res", dset_id, error)
-    call h5dread_f(dset_id, H5T_NATIVE_REAL, res, dims1d, error)
+      call h5dread_f(dset_id, H5T_NATIVE_REAL, res, dims1d, error)
     call h5dclose_f(dset_id, error)
     call h5dopen_f(file_id, "time", dset_id, error)
-    call h5dread_f(dset_id, H5T_NATIVE_REAL, time, dims1d, error)
+      call h5dread_f(dset_id, H5T_NATIVE_REAL, time, dims1d, error)
     call h5dclose_f(dset_id, error)
     call h5dopen_f(file_id, "u", dset_id, error)
-    call h5dread_f(dset_id, H5T_NATIVE_REAL, u, dims, error)
+      call h5dread_f(dset_id, H5T_NATIVE_REAL, kur, dims, error)
     call h5dclose_f(dset_id, error)
+    do k=1,nzt
+      do j=1,nyt
+        do i=1,nxt
+          u(k,j,i) = kur(i,j,k)
+        enddo
+      enddo
+    enddo
     call h5dopen_f(file_id, "v", dset_id, error)
-    call h5dread_f(dset_id, H5T_NATIVE_REAL, v, dims, error)
+      call h5dread_f(dset_id, H5T_NATIVE_REAL, kur, dims, error)
     call h5dclose_f(dset_id, error)
+    do k=1,nzt
+      do j=1,nyt
+        do i=1,nxt
+          v(k,j,i) = kur(i,j,k)
+        enddo
+      enddo
+    enddo
     call h5dopen_f(file_id, "w", dset_id, error)
-    call h5dread_f(dset_id, H5T_NATIVE_REAL, w, dims, error)
+      call h5dread_f(dset_id, H5T_NATIVE_REAL, w, dims, error)
     call h5dclose_f(dset_id, error)
   call h5fclose_f(file_id, error)
   do k=1,nzt
     do j=1,nyt
       do i=1,nxt
-        phase(k,j,i) = phase(i,j,k)
-        u(k,j,i) = u(i,j,k)
-        v(k,j,i) = v(i,j,k)
-        w(k,j,i) = w(i,j,k)
+        w(k,j,i) = kur(i,j,k)
       enddo
     enddo
   enddo
@@ -164,9 +182,6 @@ do
         surfFZ(i,j,k) = phase(i,j,k) * dzChemPot(i,j,k)
       enddo
     enddo
-  enddo
-  do k=1,250
-    write(vortU,'(256ES16.7E3)') surfFX(:,k,100)
   enddo
   call fftwf_execute_dft_r2c(plan, surfFX, surfFXHat)
   call fftwf_execute_dft_r2c(plan, surfFY, surfFYHat)
@@ -280,9 +295,9 @@ do
     do j=1,nyt
       do i=1,nxt
         if(s_drop(i,j,k).ne.0) then
-          hist(1)%v(i)=hist(1)%v(i)+invSize
-          hist(2)%v(j)=hist(2)%v(j)+invSize
-          hist(3)%v(k)=hist(3)%v(k)+invSize
+          hist(1)%v(i) = hist(1)%v(i) + invSize
+          hist(2)%v(j) = hist(2)%v(j) + invSize
+          hist(3)%v(k) = hist(3)%v(k) + invSize
           do ii=1,3
             do mom = 1,maxMom
               dropVel(mom,ii) = dropVel(mom,ii) + (vel(ii,i,j,k)**mom)*invSize
@@ -510,20 +525,18 @@ do
   endif
   do ii=1,3
     !move drop back inside domain
-    if(dropPos(1,ii).gt.nt(ii)) then
+    if(dropPos(1,ii).ge.nt(ii)+1) then
       do mom=1,maxMom
         dropPos(mom,ii)=dropPos(mom,ii)-nt(ii)**mom
       enddo
     endif
-    pos(ii) = int(dropPos(1,ii))
+    pos(ii) = floor(dropPos(1,ii))
     !put in units of simulation domain size
     do mom=1,maxMom
       dropPos(mom,ii)=dropPos(mom,ii) * ( l(ii)/nt(ii) )**mom
     enddo
   enddo
   dVeldxBox=0.0
-  dVeldx=0.0
-  kurMean=0.0
   jj=1
   ip = pos(1) + boxWid
   ip = modulo(ip-1, nt(jj)) + 1
@@ -611,8 +624,11 @@ do
   write(specU,fmtstr) time,ESpec 
   flush(specU)
   write(forcU,fmtstr) time,FSpec 
-  !write(vortU,'(4ES16.7E3)') time, vort
-  !flush(vortU)
+  write(vortU,'(4ES16.7E3)') time, vort
+  flush(vortU)
+  !do k=1,250
+  !  write(vortU,'(256ES16.7E3)') u(:,k,100)
+  !enddo
 enddo
 do ii=1,3
   deallocate(hist(ii)%v)
