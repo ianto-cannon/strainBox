@@ -117,7 +117,7 @@ do
       enddo
     enddo
     call h5dopen_f(file_id, "w", dset_id, error)
-      call h5dread_f(dset_id, H5T_NATIVE_REAL, w, dims, error)
+      call h5dread_f(dset_id, H5T_NATIVE_REAL, kur, dims, error)
     call h5dclose_f(dset_id, error)
   call h5fclose_f(file_id, error)
   do k=1,nzt
