@@ -25,13 +25,13 @@ real, dimension(3,nxt,nyt,nzt) :: nor, vel
 integer, dimension(nxt,nyt,nzt) :: s_drop
 integer, dimension(0:1,0:1,0:1) :: paint, neigh
 integer, dimension(3)  :: last0,last1,pos
-integer :: i,j,k,ip,jp,kp,iq,jq,kq,iShifted,mom,ii,jj,ky,kz,im,jm,km
+integer :: i,j,k,ip,jp,kp,iq,jq,kq,iShifted,mom,ii,jj,im,jm,km
 integer :: cols,paintIt,faceOnCorner,genus,onInt,error,intR,nVels,ios
 integer :: statU,posiU,veloU,MoInU,topoU,straU,dVelU,listU,specU,forcU,vortU
 real, dimension(maxMom,3) :: dropPos, dropVel
 real, dimension(3) :: MoIEiVals, dVeldx, strainEiVals, vort
 real, dimension(3,3) :: MoI, dVeldxBox, strainBox
-real :: diag, deformation, dropArea, dA, Cn, r, time, work(8), We, res
+real :: diag, deformation, dropArea, dA, Cn, r, time, work(8), We, res, kx, ky, kz
 real :: maxNor, kurMean, kurStdDev, kurInv, kurInvSq, invSize, QInva, RInva
 type(ragged_array) :: hist(3) !histogram of drop mass in x, y and z directions
 !integer(kind=int64) :: dropSize, faces, edges, vertices
@@ -61,7 +61,8 @@ open(newunit=topoU,file='./output/topoDrops'//trim(fileEnd),access='append',form
 open(newunit=specU,file='./output/ESpec'//trim(fileEnd),access='append',form='formatted',status="REPLACE")
 open(newunit=forcU,file='./output/FSpec'//trim(fileEnd),access='append',form='formatted',status="REPLACE")
 open(newunit=vortU,file='./output/vortBox'//trim(fileEnd),access='append',form='formatted',status="REPLACE")
-call system("ls /home/alberto.velamartin/drop_time/we_05/run_break_197/field*.h5 > file_list.txt")
+!call system("ls /home/alberto.velamartin/drop_time/we_05/run_break_197/field*.h5 > file_list.txt")
+call system("ls /home/alberto.velamartin/drop_time/we_05/run_break_197/field.008.h5 > file_list.txt")
 !Open the generated file list
 open(newunit=listU, file="file_list.txt", status="old", action="read")
 !Loop through file names
@@ -89,19 +90,29 @@ do
     call h5dread_f(dset_id, H5T_NATIVE_REAL, time, dims1d, error)
     call h5dclose_f(dset_id, error)
     call h5dopen_f(file_id, "u", dset_id, error)
-    call h5dread_f(dset_id, H5T_NATIVE_REAL, w, dims, error)
+    call h5dread_f(dset_id, H5T_NATIVE_REAL, u, dims, error)
     call h5dclose_f(dset_id, error)
     call h5dopen_f(file_id, "v", dset_id, error)
     call h5dread_f(dset_id, H5T_NATIVE_REAL, v, dims, error)
     call h5dclose_f(dset_id, error)
     call h5dopen_f(file_id, "w", dset_id, error)
-    call h5dread_f(dset_id, H5T_NATIVE_REAL, u, dims, error)
+    call h5dread_f(dset_id, H5T_NATIVE_REAL, w, dims, error)
     call h5dclose_f(dset_id, error)
   call h5fclose_f(file_id, error)
+  do k=1,nzt
+    do j=1,nyt
+      do i=1,nxt
+        phase(k,j,i) = phase(i,j,k)
+        u(k,j,i) = u(i,j,k)
+        v(k,j,i) = v(i,j,k)
+        w(k,j,i) = w(i,j,k)
+      enddo
+    enddo
+  enddo
   !change box size from 256 to 2 pi
-  u=u*lx/nxt
-  v=v*ly/nyt
-  w=w*lz/nxt
+  !u=u*lx/nxt
+  !v=v*ly/nyt
+  !w=w*lz/nxt
   vel(1,:,:,:)=u
   vel(2,:,:,:)=v
   vel(3,:,:,:)=w
@@ -116,12 +127,17 @@ do
       ky=j-1
       if (ky.gt.nyt/2) ky=ky-nyt
       do i=1,nxt/2+1
-        cHat(i,j,k) = (kz**2 + ky**2 + (i-1)**2) * cHat(i,j,k)
+        cHat(i,j,k) = - (kz**2 + ky**2 + (i-1)**2) * cHat(i,j,k) /nxt/nyt/nzt
       enddo
     enddo
   enddo
   call fftwf_execute_dft_c2r(plan_inverse, cHat, dxxPhase)
+  write(*,*) 'max dxxPhase',maxval(abs(dxxPhase))
+  write(*,*) 'mean dxxPhase',sum(abs(dxxPhase))/nxt/nyt/nzt
   chemPot = 1/Cn * (phase*phase - 1)*phase - Cn*dxxPhase
+  do k=1,250
+    write(vortU,'(256ES16.7E3)') chemPot(:,k,100)
+  enddo
   call fftwf_execute_dft_r2c(plan, chemPot, chemPotHat)
   do k=1,nzt
     kz=k-1
@@ -130,9 +146,9 @@ do
       ky=j-1
       if (ky.gt.nyt/2) ky=ky-nyt
       do i=1,nxt/2+1
-        dxChemPotHat(i,j,k) =(i-1)* chemPotHat(i,j,k)
-        dyChemPotHat(i,j,k) = ky * chemPotHat(i,j,k)
-        dzChemPotHat(i,j,k) = kz * chemPotHat(i,j,k)
+        dxChemPotHat(i,j,k) =(i-1)*chemPotHat(i,j,k) /nxt/nyt/nzt
+        dyChemPotHat(i,j,k) = ky * chemPotHat(i,j,k) /nxt/nyt/nzt
+        dzChemPotHat(i,j,k) = kz * chemPotHat(i,j,k) /nxt/nyt/nzt
       enddo
     enddo
   enddo
@@ -588,8 +604,8 @@ do
   write(specU,fmtstr) time,ESpec 
   flush(specU)
   write(forcU,fmtstr) time,FSpec 
-  write(vortU,'(4ES16.7E3)') time, vort
-  flush(vortU)
+  !write(vortU,'(4ES16.7E3)') time, vort
+  !flush(vortU)
 enddo
 do ii=1,3
   deallocate(hist(ii)%v)
