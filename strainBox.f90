@@ -15,7 +15,7 @@ integer,parameter :: maxMom=2
 integer,parameter :: nxt=256, nyt=256, nzt=256, boxWid=nint(nzt/10.)
 integer, dimension(3), parameter :: nt = (/nxt,nyt,nzt/)
 real, parameter :: pi=3.14159265358979
-real,parameter :: lx=2*pi, ly=2*pi, lz=2*pi
+real,parameter :: lx=nxt, ly=nyt, lz=nzt
 real, dimension(3), parameter :: l = (/lx,ly,lz/)
 real,parameter :: dx=lx/nxt, dy=ly/nxt, dz=lz/nxt
 real, dimension(nxt,nyt,nzt) :: kur,u,v,w,phase,dxxPhase
@@ -121,34 +121,35 @@ do
   plan_inverse=fftwf_plan_dft_c2r_3d(nzt, nyt, nxt, cHat, phase, FFTW_ESTIMATE)
   call fftwf_execute_dft_r2c(plan, phase, cHat)
   do k=1,nzt
-    kz=k-1
-    if (kz.gt.nzt/2) kz=kz-nzt
+    km=k-1
+    if (km.gt.nzt/2) km=km-nzt
+    kz=km*2*pi/lz
     do j=1,nyt
-      ky=j-1
-      if (ky.gt.nyt/2) ky=ky-nyt
+      jm=j-1
+      if (jm.gt.nyt/2) jm=jm-nyt
+      ky=jm*2*pi/ly
       do i=1,nxt/2+1
-        cHat(i,j,k) = - (kz**2 + ky**2 + (i-1)**2) * cHat(i,j,k) /nxt/nyt/nzt
+        kx=(i-1)*2*pi/lx
+        cHat(i,j,k) = - (kz**2 + ky**2 + kx**2) * cHat(i,j,k) /nxt/nyt/nzt
       enddo
     enddo
   enddo
   call fftwf_execute_dft_c2r(plan_inverse, cHat, dxxPhase)
-  write(*,*) 'max dxxPhase',maxval(abs(dxxPhase))
-  write(*,*) 'mean dxxPhase',sum(abs(dxxPhase))/nxt/nyt/nzt
   chemPot = 1/Cn * (phase*phase - 1)*phase - Cn*dxxPhase
-  do k=1,250
-    write(vortU,'(256ES16.7E3)') chemPot(:,k,100)
-  enddo
   call fftwf_execute_dft_r2c(plan, chemPot, chemPotHat)
   do k=1,nzt
-    kz=k-1
-    if (kz.gt.nzt/2) kz=kz-nzt
+    km=k-1
+    if (km.gt.nzt/2) km=km-nzt
+    kz=km*2*pi/lz
     do j=1,nyt
-      ky=j-1
-      if (ky.gt.nyt/2) ky=ky-nyt
+      jm=j-1
+      if (jm.gt.nyt/2) jm=jm-nyt
+      ky=jm*2*pi/ly
       do i=1,nxt/2+1
-        dxChemPotHat(i,j,k) =(i-1)*chemPotHat(i,j,k) /nxt/nyt/nzt
-        dyChemPotHat(i,j,k) = ky * chemPotHat(i,j,k) /nxt/nyt/nzt
-        dzChemPotHat(i,j,k) = kz * chemPotHat(i,j,k) /nxt/nyt/nzt
+        kx=(i-1)*2*pi/lx
+        dxChemPotHat(i,j,k) = (0.0,1.0) * kx * chemPotHat(i,j,k) /nxt/nyt/nzt
+        dyChemPotHat(i,j,k) = (0.0,1.0) * ky * chemPotHat(i,j,k) /nxt/nyt/nzt
+        dzChemPotHat(i,j,k) = (0.0,1.0) * kz * chemPotHat(i,j,k) /nxt/nyt/nzt
       enddo
     enddo
   enddo
@@ -164,6 +165,9 @@ do
       enddo
     enddo
   enddo
+  do k=1,250
+    write(vortU,'(256ES16.7E3)') surfFX(:,k,100)
+  enddo
   call fftwf_execute_dft_r2c(plan, surfFX, surfFXHat)
   call fftwf_execute_dft_r2c(plan, surfFY, surfFYHat)
   call fftwf_execute_dft_r2c(plan, surfFZ, surfFZHat)
@@ -173,15 +177,18 @@ do
   ESpec=0.0
   FSpec=0.0
   do k=1,nzt
-    kz=k-1
-    if (kz.gt.nzt/2) kz=kz-nzt
+    km=k-1
+    if (km.gt.nzt/2) km=km-nzt
+    kz=km*2*pi/lz
     do j=1,nyt
-      ky=j-1
-      if (ky.gt.nyt/2) ky=ky-nyt
+      jm=j-1
+      if (jm.gt.nyt/2) jm=jm-nyt
+      ky=jm*2*pi/ly
       do i=1,nxt/2+1
-        r = sqrt( kz**2 + ky**2 + (i-1)**2 + 0.0)
+        kx=(i-1)*2*pi/lx
+        r = sqrt( kz**2 + ky**2 + kx**2 )
         !Find the bin number for this radius. Bins have width 1.0/pointsPerWvNum.
-        intR = int(r+0.5) 
+        intR = int( r*lz/2/pi + 0.5) 
         if(intR.le.nzt/2) then
           !Factor of half is cancelled when taking the real part of velocity*force
           ESpec(intR) = ESpec(intR) + 1.0/nxt/nyt/nzt* & 
@@ -622,5 +629,7 @@ close(forcU,status='keep')
 close(listU)
 close(vortU)
 call system("rm file_list.txt")
+call system("./transpose.awk.sh output/ESpec.txt > output/ESpecTransp.txt")
+call system("./transpose.awk.sh output/FSpec.txt > output/FSpecTransp.txt")
 write(6,*) 'This is the end'
 end program strain_box
