@@ -2,6 +2,7 @@ program strain_box
 use hdf5
 !use, intrinsic :: ISO_FORTRAN_ENV
 use, intrinsic :: iso_c_binding
+use mpi
 implicit none
 include 'fftw3.f03'
 type ragged_array
@@ -9,7 +10,7 @@ type ragged_array
   real,allocatable::v(:)
   character(len=12) :: indexName
 end type ragged_array
-character(len=200) :: filename
+character(len=200) :: filename, dirname
 real :: modnor
 integer,parameter :: maxMom=2
 integer,parameter :: nxt=256, nyt=256, nzt=256, boxWid=nint(nzt/6.)
@@ -26,8 +27,9 @@ integer, dimension(nxt,nyt,nzt) :: s_drop
 integer, dimension(0:1,0:1,0:1) :: paint, neigh
 integer, dimension(3)  :: last0,last1,pos
 integer :: i,j,k,ip,jp,kp,iq,jq,kq,iShifted,mom,ii,jj,im,jm,km
-integer :: cols,paintIt,faceOnCorner,genus,onInt,error,intR,nVels,ios
-integer :: statU,posiU,veloU,MoInU,topoU,straU,dVelU,listU,specU,forcU,vortU
+integer :: cols,paintIt,faceOnCorner,genus,onInt,error,intR,nVels,ios,rank,ntask
+integer :: statU,posiU,veloU,MoInU,topoU,straU,dVelU,dirU,listU,specU,forcU,vortU
+integer :: runBreak
 real, dimension(maxMom,3) :: dropPos, dropVel
 real, dimension(3) :: MoIEiVals, dVeldx, strainEiVals, vort
 real, dimension(3,3) :: MoI, dVeldxBox, strainBox
@@ -36,20 +38,47 @@ real :: maxNor,kurMean,kurStdDev,kurInv,kurInvSq,invSize,QInva,RInva,surPow
 type(ragged_array) :: hist(3) !histogram of drop mass in x, y and z directions
 !integer(kind=int64) :: dropSize, faces, edges, vertices
 integer :: dropSize, faces, edges, vertices
-character(len=200) :: fileEnd, fmtstr
+character(len=200) :: fileEnd, str
 integer(hid_t) :: file_id, dset_id
 integer(hsize_t) :: dims(3)=(/nxt,nyt,nzt/),  dims1d(1)=(/1/) 
 complex, dimension(nxt/2+1,nyt,nzt) :: cHat,chemPotHat,dxChemPotHat,dyChemPotHat,dzChemPotHat
 complex, dimension(nxt/2+1,nyt,nzt) :: surfFXHat,surfFYHat,surfFZHat,uHat,vHat,wHat
 real, dimension(0:nzt/2) :: FSpec,ESpec
 type(C_PTR)  :: plan, plan_inverse
-write(*,'(1x,a)') 'starting number of drops calculation                       '
+call mpi_init(error)
+call mpi_comm_rank(mpi_comm_world,rank,error)
+call mpi_comm_size(mpi_comm_world,ntask,error)
+!call MPI_Get_processor_name(procname, namelen,error)
+if (rank.eq.0) write(*,'(1x,a)') 'starting number of drops calculation'
 do ii=1,3
   allocate(hist(ii)%v(nt(ii)))
 enddo
 hist(1)%indexName='1'
 hist(2)%indexName='2'
 hist(3)%indexName='3'
+
+if (rank.eq.0) call system('ls /home/alberto.velamartin/drop_time/we_05/ > ../we_05/dir_list.txt')
+call mpi_barrier(mpi_comm_world,error)
+open(newunit=dirU, file="../we_05/dir_list.txt", status="old", action="read")
+ntask = 16
+rank = 4
+do
+  read(dirU, '(A)', iostat=ios) dirname
+  if (ios /= 0) exit
+  str = trim( dirname(11:) )
+  read( str , *) runBreak
+  if ( modulo( runBreak, ntask ) .ne. rank) cycle
+  write(6,*) ntask, rank, trim(dirname)
+  flush(6)
+enddo
+!call system("rm ../we_05/dir_list.txt")
+call mpi_finalize(error)
+return
+write(str,'(a,i3.3,a)') 'ls /home/alberto.velamartin/drop_time/we_05/run_break_',rank,'/field*.h5 > file_list.txt'
+write(*,*) str
+
+call system("ls /home/alberto.velamartin/drop_time/we_05/run_break_197/field*.h5 > file_list.txt")
+!call system("ls /home/alberto.velamartin/drop_time/we_05/run_break_197/field.100.h5 > file_list.txt")
 fileEnd='.txt'
 open(newunit=statU,file='./output/statDrops'//trim(fileEnd),access='append',form='formatted',status="REPLACE")
 open(newunit=posiU,file='./output/posiDrops'//trim(fileEnd),access='append',form='formatted',status="REPLACE")
@@ -61,8 +90,6 @@ open(newunit=topoU,file='./output/topoDrops'//trim(fileEnd),access='append',form
 open(newunit=specU,file='./output/ESpec'//trim(fileEnd),access='append',form='formatted',status="REPLACE")
 open(newunit=forcU,file='./output/FSpec'//trim(fileEnd),access='append',form='formatted',status="REPLACE")
 open(newunit=vortU,file='./output/vortBox'//trim(fileEnd),access='append',form='formatted',status="REPLACE")
-call system("ls /home/alberto.velamartin/drop_time/we_05/run_break_197/field*.h5 > file_list.txt")
-!call system("ls /home/alberto.velamartin/drop_time/we_05/run_break_197/field.100.h5 > file_list.txt")
 !Open the generated file list
 open(newunit=listU, file="file_list.txt", status="old", action="read")
 !Loop through file names
@@ -610,10 +637,10 @@ do
         last0(:),last1(:),kurInv,kurInvSq,surPow
   flush(statU)
   ! generate format string for writing 
-  write(fmtstr,'(a,i0,a)') '(',1+maxMom*3,'(ES16.7E3))'
-  write(posiU,fmtstr) time, (dropPos(mom,:),mom=1,maxMom)
+  write(str,'(a,i0,a)') '(',1+maxMom*3,'(ES16.7E3))'
+  write(posiU,str) time, (dropPos(mom,:),mom=1,maxMom)
   flush(posiU)
-  write(veloU,fmtstr) time, (dropVel(mom,:),mom=1,maxMom)
+  write(veloU,str) time, (dropVel(mom,:),mom=1,maxMom)
   flush(veloU)
   write(MoInU,'(13ES16.7E3)') time, MoIEiVals, MoI
   flush(MoInU)
@@ -623,10 +650,10 @@ do
   flush(straU)
   write(topoU,'(ES16.7E3, 4i16)') time,vertices,edges,faces,genus
   flush(topoU)
-  write(fmtstr,'(a,i0,a)') '(',nzt/2+2,'(ES16.7E3))'
-  write(specU,fmtstr) time,ESpec 
+  write(str,'(a,i0,a)') '(',nzt/2+2,'(ES16.7E3))'
+  write(specU,str) time,ESpec 
   flush(specU)
-  write(forcU,fmtstr) time,FSpec 
+  write(forcU,str) time,FSpec 
   write(vortU,'(4ES16.7E3)') time, vort
   flush(vortU)
   !do k=1,250
@@ -651,4 +678,5 @@ call system("rm file_list.txt")
 call system("./transpose.awk.sh output/ESpec.txt > output/ESpecTransp.txt")
 call system("./transpose.awk.sh output/FSpec.txt > output/FSpecTransp.txt")
 write(6,*) 'This is the end'
+call mpi_finalize(error)
 end program strain_box
