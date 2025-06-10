@@ -31,8 +31,8 @@ integer :: statU,posiU,veloU,MoInU,topoU,straU,dVelU,listU,specU,forcU,vortU
 real, dimension(maxMom,3) :: dropPos, dropVel
 real, dimension(3) :: MoIEiVals, dVeldx, strainEiVals, vort
 real, dimension(3,3) :: MoI, dVeldxBox, strainBox
-real :: diag, deformation, dropArea, dA, Cn, r, time, work(8), We, res, kx, ky, kz
-real :: maxNor, kurMean, kurStdDev, kurInv, kurInvSq, invSize, QInva, RInva
+real :: diag,deformation,dropArea,dA,Cn,r,time,work(8),We,res,kx,ky,kz,weight
+real :: maxNor,kurMean,kurStdDev,kurInv,kurInvSq,invSize,QInva,RInva,surPow
 type(ragged_array) :: hist(3) !histogram of drop mass in x, y and z directions
 !integer(kind=int64) :: dropSize, faces, edges, vertices
 integer :: dropSize, faces, edges, vertices
@@ -183,6 +183,7 @@ do
       enddo
     enddo
   enddo
+  surPow = sum(surfFX*u + surfFY*v + surfFZ*w)
   call fftwf_execute_dft_r2c(plan, surfFX, surfFXHat)
   call fftwf_execute_dft_r2c(plan, surfFY, surfFYHat)
   call fftwf_execute_dft_r2c(plan, surfFZ, surfFZHat)
@@ -205,12 +206,14 @@ do
         !Find the bin number for this radius. Bins have width 1.0/pointsPerWvNum.
         intR = int( r*lz/2/pi + 0.5) 
         if(intR.le.nzt/2) then
-          !Factor of half is cancelled when taking the real part of velocity*force
-          ESpec(intR) = ESpec(intR) + 1.0/nxt/nyt/nzt* & 
+          !Half of the kx domain is missing from FFT of real, so we must double
+          weight=2.0
+          if(i==1.or.i==nxt/2+1) weight=1.0
+          ESpec(intR) = ESpec(intR) + weight/nxt/nyt/nzt* & 
                                     ( abs(uHat(i,j,k))**2 + &
                                       abs(vHat(i,j,k))**2 + &
                                       abs(wHat(i,j,k))**2 )
-          FSpec(intR) = FSpec(intR) + 1.0/nxt/nyt/nzt* & 
+          FSpec(intR) = FSpec(intR) + weight/nxt/nyt/nzt* & 
                                     ( real( conjg(uHat(i,j,k)) * surfFXHat(i,j,k) )+ &
                                       real( conjg(vHat(i,j,k)) * surfFYHat(i,j,k) )+ &
                                       real( conjg(wHat(i,j,k)) * surfFZHat(i,j,k) ))
@@ -603,8 +606,8 @@ do
     enddo
   enddo
   call SSYEV("V","U",3,strainBox,3,strainEiVals,work,8,error)
-  write(statU,'(ES16.7E3,i16,4ES16.7E3,6i16,2ES16.7E3)') time,dropSize,dropArea,deformation,kurMean,kurStdDev,&
-        last0(:),last1(:),kurInv,kurInvSq
+  write(statU,'(ES16.7E3,i16,4ES16.7E3,6i16,3ES16.7E3)') time,dropSize,dropArea,deformation,kurMean,kurStdDev,&
+        last0(:),last1(:),kurInv,kurInvSq,surPow
   flush(statU)
   ! generate format string for writing 
   write(fmtstr,'(a,i0,a)') '(',1+maxMom*3,'(ES16.7E3))'
