@@ -10,7 +10,7 @@ type ragged_array
   real,allocatable::v(:)
   character(len=12) :: indexName
 end type ragged_array
-character(len=200) :: filename, runName, weName='we_05/'
+character(len=200) :: filename, runName, weName='we_05/', inDir, outDir
 real :: modnor
 integer,parameter :: maxMom=2
 integer,parameter :: nxt=256, nyt=256, nzt=256, boxWid=nint(nzt/6.)
@@ -56,57 +56,60 @@ enddo
 hist(1)%indexName='1'
 hist(2)%indexName='2'
 hist(3)%indexName='3'
-
-if (rank.eq.0) call system('ls /home/alberto.velamartin/drop_time/we_05/ > ../we_05/dir_list.txt')
+plan        =fftwf_plan_dft_r2c_3d(nzt, nyt, nxt, phase, cHat, FFTW_ESTIMATE)
+plan_inverse=fftwf_plan_dft_c2r_3d(nzt, nyt, nxt, cHat, phase, FFTW_ESTIMATE)
+if (rank.eq.0) call system('ls /home/alberto.velamartin/drop_time/'//trim(weName)//&
+                            '/ > ../'//trim(weName)//'dir_list.txt')
 call mpi_barrier(mpi_comm_world,error)
-open(newunit=dirU, file="../we_05/dir_list.txt", status="old", action="read")
-!ntask=64
-!rank=4
+open(newunit=dirU, file='../'//trim(weName)//'dir_list.txt', status='old', action='read')
 do
   read(dirU, '(A)', iostat=ios) runName
   if (ios /= 0) exit
   str = trim( runName(11:) )
   read( str , *) runNum
   if ( modulo( runNum, ntask ) .ne. rank) cycle
-  if (rank.eq.3) write(6,*) ntask, rank, trim(runName)
+  write(6,*) '71rank',rank,trim(runName)
   flush(6)
-  !write(str,'(a,i3.3,a)') 'ls /home/alberto.velamartin/drop_time/we_05/run_break_',rank,'/field*.h5 > file_list.txt'
-  !write(*,*) str
-  
-  if (rank.eq.3) write(6,*) 'ls /home/alberto.velamartin/drop_time/'//trim(weName)//trim(runName)//&
-              '/field*.h5 > ../'//trim(weName)//trim(runName)//'/file_list.txt'
-  call system('ls /home/alberto.velamartin/drop_time/'//trim(weName)//trim(runName)//&
-              '/field*.h5 > ../'//trim(weName)//trim(runName)//'/file_list.txt')
-  !call system("ls /home/alberto.velamartin/drop_time/we_05/run_break_197/field*.h5 > file_list.txt")
+  inDir='/home/alberto.velamartin/drop_time/'//trim(weName)//trim(runName)
+  outDir='../'//trim(weName)//trim(runName)
+  call system('mkdir '//trim(outDir))
+  call system('ls '//trim(inDir)//'/field*.h5 > '//trim(outDir)//'/file_list.txt')
   fileEnd='.txt'
-  open(newunit=statU,file='./output/statDrops'//trim(fileEnd),access='append',form='formatted',status="REPLACE")
-  open(newunit=posiU,file='./output/posiDrops'//trim(fileEnd),access='append',form='formatted',status="REPLACE")
-  open(newunit=veloU,file='./output/veloDrops'//trim(fileEnd),access='append',form='formatted',status="REPLACE")
-  open(newunit=MoInU,file='./output/MoInDrops'//trim(fileEnd),access='append',form='formatted',status="REPLACE")
-  open(newunit=dVelU,file='./output/dVeldxBox'//trim(fileEnd),access='append',form='formatted',status="REPLACE")
-  open(newunit=straU,file='./output/strainBox'//trim(fileEnd),access='append',form='formatted',status="REPLACE")
-  open(newunit=topoU,file='./output/topoDrops'//trim(fileEnd),access='append',form='formatted',status="REPLACE")
-  open(newunit=specU,file='./output/ESpec'//trim(fileEnd),access='append',form='formatted',status="REPLACE")
-  open(newunit=forcU,file='./output/FSpec'//trim(fileEnd),access='append',form='formatted',status="REPLACE")
-  open(newunit=vortU,file='./output/vortBox'//trim(fileEnd),access='append',form='formatted',status="REPLACE")
+  call mpi_barrier(mpi_comm_world,error)
+  write(*,*) '76rank',rank,'outDir',trim(outDir)
+  open(newunit=statU,file=trim(outDir)//'/statDrops'//trim(fileEnd), access='append',form='formatted',status='REPLACE')
+  open(newunit=posiU,file=trim(outDir)//'/posiDrops'//trim(fileEnd),access='append',form='formatted',status='REPLACE')
+  open(newunit=veloU,file=trim(outDir)//'/veloDrops'//trim(fileEnd),access='append',form='formatted',status='REPLACE')
+  open(newunit=MoInU,file=trim(outDir)//'/MoInDrops'//trim(fileEnd),access='append',form='formatted',status='REPLACE')
+  open(newunit=dVelU,file=trim(outDir)//'/dVeldxBox'//trim(fileEnd),access='append',form='formatted',status='REPLACE')
+  open(newunit=straU,file=trim(outDir)//'/strainBox'//trim(fileEnd),access='append',form='formatted',status='REPLACE')
+  open(newunit=topoU,file=trim(outDir)//'/topoDrops'//trim(fileEnd),access='append',form='formatted',status='REPLACE')
+  open(newunit=specU,file=trim(outDir)//'/ESpec'//trim(fileEnd),access='append',form='formatted',status='REPLACE')
+  open(newunit=forcU,file=trim(outDir)//'/FSpec'//trim(fileEnd),access='append',form='formatted',status='REPLACE')
+  open(newunit=vortU,file=trim(outDir)//'/vortBox'//trim(fileEnd),access='append',form='formatted',status='REPLACE')
   !Open the generated file list
-  open(newunit=listU, file="file_list.txt", status="old", action="read")
+  open(newunit=listU, file=trim(outDir)//'/file_list.txt', status='old', action='read')
   !Loop through file names
   do
     read(listU, '(A)', iostat=ios) filename
     if (ios /= 0) exit
-    write(6,'(A)') trim(filename)
+    call mpi_barrier(mpi_comm_world,error)
+    write(6,*) '93rank',rank,trim(filename)
     flush(6)
     ! Open the file (read-only)
     call h5open_f(error)
+    call mpi_barrier(mpi_comm_world,error)
+    write(*,*) '102rank',rank
     call h5fopen_f(filename, H5F_ACC_RDONLY_F, file_id, error)
-      call h5dopen_f(file_id, "Cn", dset_id, error)
+      call mpi_barrier(mpi_comm_world,error)
+      write(*,*) '103rank',rank
+      call h5dopen_f(file_id, 'Cn', dset_id, error)
         call h5dread_f(dset_id, H5T_NATIVE_REAL, Cn, dims1d, error)
       call h5dclose_f(dset_id, error)
-      call h5dopen_f(file_id, "We", dset_id, error)
+      call h5dopen_f(file_id, 'We', dset_id, error)
         call h5dread_f(dset_id, H5T_NATIVE_REAL, We, dims1d, error)
       call h5dclose_f(dset_id, error)
-      call h5dopen_f(file_id, "c", dset_id, error)
+      call h5dopen_f(file_id, 'c', dset_id, error)
         call h5dread_f(dset_id, H5T_NATIVE_REAL, kur, dims, error)
       call h5dclose_f(dset_id, error)
       do k=1,nzt
@@ -116,13 +119,13 @@ do
           enddo
         enddo
       enddo
-      call h5dopen_f(file_id, "res", dset_id, error)
+      call h5dopen_f(file_id, 'res', dset_id, error)
         call h5dread_f(dset_id, H5T_NATIVE_REAL, res, dims1d, error)
       call h5dclose_f(dset_id, error)
-      call h5dopen_f(file_id, "time", dset_id, error)
+      call h5dopen_f(file_id, 'time', dset_id, error)
         call h5dread_f(dset_id, H5T_NATIVE_REAL, time, dims1d, error)
       call h5dclose_f(dset_id, error)
-      call h5dopen_f(file_id, "u", dset_id, error)
+      call h5dopen_f(file_id, 'u', dset_id, error)
         call h5dread_f(dset_id, H5T_NATIVE_REAL, kur, dims, error)
       call h5dclose_f(dset_id, error)
       do k=1,nzt
@@ -132,7 +135,7 @@ do
           enddo
         enddo
       enddo
-      call h5dopen_f(file_id, "v", dset_id, error)
+      call h5dopen_f(file_id, 'v', dset_id, error)
         call h5dread_f(dset_id, H5T_NATIVE_REAL, kur, dims, error)
       call h5dclose_f(dset_id, error)
       do k=1,nzt
@@ -142,10 +145,12 @@ do
           enddo
         enddo
       enddo
-      call h5dopen_f(file_id, "w", dset_id, error)
+      call h5dopen_f(file_id, 'w', dset_id, error)
         call h5dread_f(dset_id, H5T_NATIVE_REAL, kur, dims, error)
       call h5dclose_f(dset_id, error)
     call h5fclose_f(file_id, error)
+    call mpi_barrier(mpi_comm_world,error)
+    write(*,*) '149rank',rank
     do k=1,nzt
       do j=1,nyt
         do i=1,nxt
@@ -161,8 +166,6 @@ do
     vel(2,:,:,:)=v
     vel(3,:,:,:)=w
     write(*,*)'rmsVel',sqrt(sum(vel**2)/nzt**3/3)
-    plan        =fftwf_plan_dft_r2c_3d(nzt, nyt, nxt, phase, cHat, FFTW_ESTIMATE)
-    plan_inverse=fftwf_plan_dft_c2r_3d(nzt, nyt, nxt, cHat, phase, FFTW_ESTIMATE)
     call fftwf_execute_dft_r2c(plan, phase, cHat)
     do k=1,nzt
       km=k-1
@@ -247,9 +250,6 @@ do
         enddo
       enddo
     enddo
-    call fftw_destroy_plan(plan)
-    call fftw_destroy_plan(plan_inverse)
-    call fftw_cleanup()
     dropSize=0
     do k=1,nzt
       do j=1,nyt
@@ -314,6 +314,8 @@ do
     faces=0
     edges=0
     vertices=0
+    call mpi_barrier(mpi_comm_world,error)
+    write(*,*) '311rank',rank
     do ii=1,3
       hist(ii)%v=0.0
     enddo
@@ -548,7 +550,7 @@ do
       write(*,*) 'drop spans all of domain, deformation is undefined'
       deformation=-1.0
     else
-      call SSYEV("V","U",3,MoI,3,MoIEiVals,work,8,error)
+      call SSYEV('V','U',3,MoI,3,MoIEiVals,work,8,error)
       if (error.ne.0) write(*,*) 'dropSize', dropSize, 'MoIEiVals', MoIEiVals
       deformation=sqrt(MoIEiVals(3)/MoIEiVals(1))
     endif
@@ -631,7 +633,7 @@ do
         enddo
       enddo
     enddo
-    call SSYEV("V","U",3,strainBox,3,strainEiVals,work,8,error)
+    call SSYEV('V','U',3,strainBox,3,strainEiVals,work,8,error)
     write(statU,'(ES16.7E3,i16,4ES16.7E3,6i16,3ES16.7E3)') time,dropSize,dropArea,deformation,kurMean,kurStdDev,&
           last0(:),last1(:),kurInv,kurInvSq,surPow
     flush(statU)
@@ -669,15 +671,18 @@ do
   close(forcU,status='keep')
   close(listU)
   close(vortU)
-  call system("rm file_list.txt")
-  call system("./transpose.awk.sh output/ESpec.txt > output/ESpecTransp.txt")
-  call system("./transpose.awk.sh output/FSpec.txt > output/FSpecTransp.txt")
+  call system('rm file_list.txt')
+  call system('./transpose.awk.sh output/ESpec.txt > output/ESpecTransp.txt')
+  call system('./transpose.awk.sh output/FSpec.txt > output/FSpecTransp.txt')
 enddo
 enddo
 do ii=1,3
   deallocate(hist(ii)%v)
 enddo
-if (rank.eq.0) call system("rm ../we_05/dir_list.txt")
+call fftw_destroy_plan(plan)
+call fftw_destroy_plan(plan_inverse)
+call fftw_cleanup()
+if (rank.eq.0) call system('rm ../'//trim(weName)//'dir_list.txt')
 if (rank.eq.0) write(6,*) 'This is the end'
 call mpi_finalize(error)
 return
