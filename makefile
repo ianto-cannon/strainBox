@@ -1,5 +1,5 @@
-HDF5_INC = $(HOME)/drops/boxStrain/src/lib/hdf5_install/include
-HDF5_LIB = $(HOME)/drops/boxStrain/src/lib/hdf5_install/lib
+HDF5_INC = $(HOME)/drops/boxStrain/src/lib/hdf5_parallel/include
+HDF5_LIB = $(HOME)/drops/boxStrain/src/lib/hdf5_parallel/lib
 
 # Compiler and flags
 FC = mpif90

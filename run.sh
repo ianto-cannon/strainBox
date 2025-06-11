@@ -3,4 +3,5 @@
 #SBATCH -t 2-00:00:00
 #SBATCH -n 16
 module load impi
-mpirun -np 16 ./strainBox
+mpirun -np 16 ./a.out
+##mpirun -np 16 ./strainBox
