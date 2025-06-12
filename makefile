@@ -13,8 +13,8 @@ LIBS = -L$(HDF5_LIB) -Wl,-rpath,$(HDF5_LIB) \
        -llapack -lhdf5_fortran -lhdf5 -lfftw3 -lfftw3f
 
 # Sources and objects
-OBJS = modVelGrad.o strainBox.o
-EXE = strainBox
+OBJS = modVelGrad.o main.o
+EXE = dropStrain
 
 # Rules
 all: $(EXE)
