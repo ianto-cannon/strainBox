@@ -1,9 +1,9 @@
-program strain_box
+program dropStrain
 use hdf5
 !use, intrinsic :: ISO_FORTRAN_ENV
 use, intrinsic :: iso_c_binding
 use mpi
-use mod_vel_grad, only : velGradBox, nt, l, dx
+use modVelGrad, only : velGradBox, nt, l, dx
 implicit none
 include 'fftw3.f03'
 type ragged_array
@@ -20,7 +20,7 @@ real, dimension(nt(1),nt(2),nt(3)) :: kur,u,v,w,phase,dxxPhase
 real, dimension(nt(1),nt(2),nt(3)) :: chemPot,dxChemPot,dyChemPot,dzChemPot,surfFX,surfFY,surfFZ
 real, dimension(3,nt(1),nt(2),nt(3)) :: nor, vel
 !use int8 for non shared arrays to save memory
-integer, dimension(nt(1),nt(2),nt(3)) :: s_drop
+integer, dimension(nt(1),nt(2),nt(3)) :: drop
 integer, dimension(0:1,0:1,0:1) :: paint, neigh
 integer, dimension(3)  :: last0,last1,pos
 integer :: i,j,k,ip,jp,kp,iq,jq,kq,iShifted,mom,ii,jj,im,jm,km
@@ -248,10 +248,10 @@ do
       do j=1,nt(2)
         do i=1,nt(1)
           if(phase(i,j,k).ge.0.9)then
-            s_drop(i,j,k)=1
+            drop(i,j,k)=1
             dropSize=dropSize+1
           else
-            s_drop(i,j,k)=0
+            drop(i,j,k)=0
           endif
           !compute cell-centred normal
           ip=i+1
@@ -316,7 +316,7 @@ do
     do k=1,nt(3)
       do j=1,nt(2)
         do i=1,nt(1)
-          if(s_drop(i,j,k).ne.0) then
+          if(drop(i,j,k).ne.0) then
             hist(1)%v(i) = hist(1)%v(i) + invSize
             hist(2)%v(j) = hist(2)%v(j) + invSize
             hist(3)%v(k) = hist(3)%v(k) + invSize
@@ -362,7 +362,7 @@ do
           !use https://en.wikipedia.org/wiki/Moment_of_inertia#Inertia_tensor
           !Bunner & Tryggvason JFM 2003 misses out on diag part of MoI definition
           !don't bother moving dropPos inside domain until after the moment of inertia calculations
-          if(s_drop(i,j,k).ne.0) then
+          if(drop(i,j,k).ne.0) then
             !contribution from each cell
             diag=dx(1)**5*(1.0/6.0)
             do ii=1,3
@@ -375,7 +375,7 @@ do
               enddo
             enddo
           endif
-          !the interface is here if s_drop changes in any of the 6 directions
+          !the interface is here if drop changes in any of the 6 directions
           onInt=0
           do ii=1,3
             ip = i
@@ -402,8 +402,8 @@ do
               kq=k-1
               if(kq.lt.1)  kq=kq+nt(3)
             endif
-            if (s_drop(ip,jp,kp).ne.s_drop(i,j,k)) faces = faces + 1
-            if (s_drop(ip,jp,kp).ne.s_drop(i,j,k).or.s_drop(iq,jq,kq).ne.s_drop(i,j,k)) onInt=1
+            if (drop(ip,jp,kp).ne.drop(i,j,k)) faces = faces + 1
+            if (drop(ip,jp,kp).ne.drop(i,j,k).or.drop(iq,jq,kq).ne.drop(i,j,k)) onInt=1
           enddo
           if(onInt.eq.1)then
             !find direction which is most aligned with interface normal
@@ -444,8 +444,8 @@ do
               do iq=0,1
                 ip = i + iq
                 if(ip.gt.nt(1)) ip=ip-nt(1)
-                neigh(iq,jq,kq)=s_drop(ip,jp,kp)
-                if(s_drop(ip,jp,kp).ne.0) then
+                neigh(iq,jq,kq)=drop(ip,jp,kp)
+                if(drop(ip,jp,kp).ne.0) then
                   cols=cols+1
                   paint(iq,jq,kq)=cols
                 endif
@@ -494,7 +494,7 @@ do
                             paint(iq,jq,kq) = min(paint(iq,jq,kq), paint(ip,jp,kp))
                             paint(ip,jp,kp) = min(paint(iq,jq,kq), paint(ip,jp,kp))
                           endif
-                        !if s_drop has a sign change, there is a face and an edge
+                        !if drop has a sign change, there is a face and an edge
                         else if(paintIt.eq.1) then
                           faceOnCorner=faceOnCorner+1
                         endif
@@ -559,6 +559,7 @@ do
       enddo
     enddo
     call velGradBox(pos,vel,dVeldxBox)
+    call velGradBlob(drop,vel,dVeldxDrop)
     do ii=1,3
       do jj=1,3
         strainBox(ii,jj) = 0.5*(dVeldxBox(ii,jj) + dVeldxBox(jj,ii))
@@ -629,4 +630,4 @@ if (rank.eq.0) call system('rm ../'//trim(weName)//'dir_list.txt')
 if (rank.eq.0) write(6,*) 'This is the end'
 call mpi_finalize(error)
 return
-end program strain_box
+end program dropStrain
