@@ -13,7 +13,7 @@ end type ragged_array
 character(len=200) :: filename, runName, weName='we_05/', inDir, outDir
 real :: modnor
 integer,parameter :: maxMom=2
-integer,parameter :: nxt=256, nyt=256, nzt=256, boxWid=nint(nzt/6.)
+integer,parameter :: nxt=256, nyt=256, nzt=256, boxWid=nint(nzt/6.), kAlias=int((2.0/3.0)* (nzt/2))
 integer, dimension(3), parameter :: nt = (/nxt,nyt,nzt/)
 real, parameter :: pi=3.14159265358979
 real,parameter :: lx=nxt, ly=nyt, lz=nzt
@@ -43,7 +43,7 @@ integer(hid_t) :: file_id, dset_id
 integer(hsize_t) :: dims(3)=(/nxt,nyt,nzt/),  dims1d(1)=(/1/) 
 complex, dimension(nxt/2+1,nyt,nzt) :: cHat,chemPotHat,dxChemPotHat,dyChemPotHat,dzChemPotHat
 complex, dimension(nxt/2+1,nyt,nzt) :: surfFXHat,surfFYHat,surfFZHat,uHat,vHat,wHat
-real, dimension(0:nzt/2) :: FSpec,ESpec
+real, dimension(0:kAlias) :: FSpec,ESpec
 type(C_PTR)  :: plan, plan_inverse
 call mpi_init(error)
 call mpi_comm_rank(mpi_comm_world,rank,error)
@@ -67,16 +67,15 @@ do
   if (ios /= 0) exit
   str = trim( runName(11:) )
   read( str , *) runNum
-  if ( modulo( runNum, ntask ) .ne. rank) cycle
-  write(6,*) '71rank',rank,trim(runName)
-  flush(6)
+  !if ( modulo( runNum, ntask ) .ne. rank) cycle
+  if ( runNum .ne. 0) cycle
   inDir='/home/alberto.velamartin/drop_time/'//trim(weName)//trim(runName)
-  outDir='../'//trim(weName)//trim(runName)
+  !outDir='../'//trim(weName)//trim(runName)
+  outDir='output/'
   call system('mkdir '//trim(outDir))
-  call system('ls '//trim(inDir)//'/field*.h5 > '//trim(outDir)//'/file_list.txt')
+  !call system('ls '//trim(inDir)//'/field*.h5 > '//trim(outDir)//'/file_list.txt')
+  call system('ls '//trim(inDir)//'/field.008.h5 > '//trim(outDir)//'/file_list.txt')
   fileEnd='.txt'
-  call mpi_barrier(mpi_comm_world,error)
-  write(*,*) '76rank',rank,'outDir',trim(outDir)
   open(newunit=statU,file=trim(outDir)//'/statDrops'//trim(fileEnd), access='append',form='formatted',status='REPLACE')
   open(newunit=posiU,file=trim(outDir)//'/posiDrops'//trim(fileEnd),access='append',form='formatted',status='REPLACE')
   open(newunit=veloU,file=trim(outDir)//'/veloDrops'//trim(fileEnd),access='append',form='formatted',status='REPLACE')
@@ -93,16 +92,10 @@ do
   do
     read(listU, '(A)', iostat=ios) filename
     if (ios /= 0) exit
-    call mpi_barrier(mpi_comm_world,error)
-    write(6,*) '93rank',rank,trim(filename)
     flush(6)
     ! Open the file (read-only)
     call h5open_f(error)
-    call mpi_barrier(mpi_comm_world,error)
-    write(*,*) '102rank',rank
     call h5fopen_f(filename, H5F_ACC_RDONLY_F, file_id, error)
-      call mpi_barrier(mpi_comm_world,error)
-      write(*,*) '103rank',rank
       call h5dopen_f(file_id, 'Cn', dset_id, error)
         call h5dread_f(dset_id, H5T_NATIVE_REAL, Cn, dims1d, error)
       call h5dclose_f(dset_id, error)
@@ -149,8 +142,6 @@ do
         call h5dread_f(dset_id, H5T_NATIVE_REAL, kur, dims, error)
       call h5dclose_f(dset_id, error)
     call h5fclose_f(file_id, error)
-    call mpi_barrier(mpi_comm_world,error)
-    write(*,*) '149rank',rank
     do k=1,nzt
       do j=1,nyt
         do i=1,nxt
@@ -158,10 +149,6 @@ do
         enddo
       enddo
     enddo
-    !change box size from 256 to 2 pi
-    !u=u*lx/nxt
-    !v=v*ly/nyt
-    !w=w*lz/nxt
     vel(1,:,:,:)=u
     vel(2,:,:,:)=v
     vel(3,:,:,:)=w
@@ -184,15 +171,21 @@ do
     call fftwf_execute_dft_c2r(plan_inverse, cHat, dxxPhase)
     chemPot = 1/Cn * (phase*phase - 1)*phase - Cn*dxxPhase
     call fftwf_execute_dft_r2c(plan, chemPot, chemPotHat)
+    dxChemPotHat = (0.0,0.0)
+    dyChemPotHat = (0.0,0.0)
+    dzChemPotHat = (0.0,0.0)
     do k=1,nzt
       km=k-1
       if (km.gt.nzt/2) km=km-nzt
+      if (abs(km).gt.kAlias) cycle
       kz=km*2*pi/lz
       do j=1,nyt
         jm=j-1
         if (jm.gt.nyt/2) jm=jm-nyt
+        if (abs(jm).gt.kAlias) cycle
         ky=jm*2*pi/ly
         do i=1,nxt/2+1
+          if (i-1.gt.kAlias) cycle
           kx=(i-1)*2*pi/lx
           dxChemPotHat(i,j,k) = (0.0,1.0) * kx * chemPotHat(i,j,k) /nxt/nyt/nzt
           dyChemPotHat(i,j,k) = (0.0,1.0) * ky * chemPotHat(i,j,k) /nxt/nyt/nzt
@@ -212,6 +205,9 @@ do
         enddo
       enddo
     enddo
+    !do k=1,250
+    !  write(vortU,'(256ES16.7E3)') u(:,k,100)
+    !enddo
     surPow = sum(surfFX*u + surfFY*v + surfFZ*w)
     call fftwf_execute_dft_r2c(plan, surfFX, surfFXHat)
     call fftwf_execute_dft_r2c(plan, surfFY, surfFYHat)
@@ -234,7 +230,7 @@ do
           r = sqrt( kz**2 + ky**2 + kx**2 )
           !Find the bin number for this radius. Bins have width 1.0/pointsPerWvNum.
           intR = int( r*lz/2/pi + 0.5) 
-          if(intR.le.nzt/2) then
+          if(intR.le.kAlias) then
             !Half of the kx domain is missing from FFT of real, so we must double
             weight=2.0
             if(i==1.or.i==nxt/2+1) weight=1.0
@@ -314,8 +310,6 @@ do
     faces=0
     edges=0
     vertices=0
-    call mpi_barrier(mpi_comm_world,error)
-    write(*,*) '311rank',rank
     do ii=1,3
       hist(ii)%v=0.0
     enddo
@@ -649,17 +643,14 @@ do
     flush(dVelU)
     write(straU,'(13ES16.7E3)') time, strainEiVals, strainBox
     flush(straU)
-    write(topoU,'(ES16.7E3, 4i16)') time,vertices,edges,faces,genus
-    flush(topoU)
+    !write(topoU,'(ES16.7E3, 4i16)') time,vertices,edges,faces,genus
+    !flush(topoU)
     write(str,'(a,i0,a)') '(',nzt/2+2,'(ES16.7E3))'
     write(specU,str) time,ESpec 
     flush(specU)
     write(forcU,str) time,FSpec 
     write(vortU,'(4ES16.7E3)') time, vort
     flush(vortU)
-    !do k=1,250
-    !  write(vortU,'(256ES16.7E3)') u(:,k,100)
-    !enddo
   close(posiU,status='keep')
   close(veloU,status='keep')
   close(MoInU,status='keep')
