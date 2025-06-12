@@ -3,6 +3,7 @@ use hdf5
 !use, intrinsic :: ISO_FORTRAN_ENV
 use, intrinsic :: iso_c_binding
 use mpi
+use mod_vel_grad, only : velGradBox, nt, l, dx
 implicit none
 include 'fftw3.f03'
 type ragged_array
@@ -13,25 +14,21 @@ end type ragged_array
 character(len=200) :: filename, runName, weName='we_05/', inDir, outDir
 real :: modnor
 integer,parameter :: maxMom=2
-integer,parameter :: nxt=256, nyt=256, nzt=256, boxWid=nint(nzt/6.), kAlias=int((2.0/3.0)* (nzt/2))
-integer, dimension(3), parameter :: nt = (/nxt,nyt,nzt/)
+integer,parameter :: kAlias=int((2.0/3.0)* (nt(3)/2))
 real, parameter :: pi=3.14159265358979
-real,parameter :: lx=nxt, ly=nyt, lz=nzt
-real, dimension(3), parameter :: l = (/lx,ly,lz/)
-real,parameter :: dx=lx/nxt, dy=ly/nyt, dz=lz/nzt
-real, dimension(nxt,nyt,nzt) :: kur,u,v,w,phase,dxxPhase
-real, dimension(nxt,nyt,nzt) :: chemPot,dxChemPot,dyChemPot,dzChemPot,surfFX,surfFY,surfFZ
-real, dimension(3,nxt,nyt,nzt) :: nor, vel
+real, dimension(nt(1),nt(2),nt(3)) :: kur,u,v,w,phase,dxxPhase
+real, dimension(nt(1),nt(2),nt(3)) :: chemPot,dxChemPot,dyChemPot,dzChemPot,surfFX,surfFY,surfFZ
+real, dimension(3,nt(1),nt(2),nt(3)) :: nor, vel
 !use int8 for non shared arrays to save memory
-integer, dimension(nxt,nyt,nzt) :: s_drop
+integer, dimension(nt(1),nt(2),nt(3)) :: s_drop
 integer, dimension(0:1,0:1,0:1) :: paint, neigh
 integer, dimension(3)  :: last0,last1,pos
 integer :: i,j,k,ip,jp,kp,iq,jq,kq,iShifted,mom,ii,jj,im,jm,km
-integer :: cols,paintIt,faceOnCorner,genus,onInt,error,intR,nVels,ios,rank,ntask
+integer :: cols,paintIt,faceOnCorner,genus,onInt,error,intR,ios,rank,ntask
 integer :: statU,posiU,veloU,MoInU,topoU,straU,dVelU,dirU,listU,specU,forcU,vortU
 integer :: runNum
 real, dimension(maxMom,3) :: dropPos, dropVel
-real, dimension(3) :: MoIEiVals, dVeldx, strainEiVals, vort
+real, dimension(3) :: MoIEiVals, strainEiVals, vort
 real, dimension(3,3) :: MoI, dVeldxBox, strainBox
 real :: diag,deformation,dropArea,dA,Cn,r,time,work(8),We,res,kx,ky,kz,weight
 real :: maxNor,kurMean,kurStdDev,kurInv,kurInvSq,invSize,QInva,RInva,surPow
@@ -40,9 +37,9 @@ type(ragged_array) :: hist(3) !histogram of drop mass in x, y and z directions
 integer :: dropSize, faces, edges, vertices
 character(len=200) :: fileEnd, str
 integer(hid_t) :: file_id, dset_id
-integer(hsize_t) :: dims(3)=(/nxt,nyt,nzt/),  dims1d(1)=(/1/) 
-complex, dimension(nxt/2+1,nyt,nzt) :: cHat,chemPotHat,dxChemPotHat,dyChemPotHat,dzChemPotHat
-complex, dimension(nxt/2+1,nyt,nzt) :: surfFXHat,surfFYHat,surfFZHat,uHat,vHat,wHat
+integer(hsize_t) :: dims(3)=(/nt(1),nt(2),nt(3)/),  dims1d(1)=(/1/) 
+complex, dimension(nt(1)/2+1,nt(2),nt(3)) :: cHat,chemPotHat,dxChemPotHat,dyChemPotHat,dzChemPotHat
+complex, dimension(nt(1)/2+1,nt(2),nt(3)) :: surfFXHat,surfFYHat,surfFZHat,uHat,vHat,wHat
 real, dimension(0:kAlias) :: FSpec,ESpec
 type(C_PTR)  :: plan, plan_inverse
 call mpi_init(error)
@@ -56,8 +53,8 @@ enddo
 hist(1)%indexName='1'
 hist(2)%indexName='2'
 hist(3)%indexName='3'
-plan        =fftwf_plan_dft_r2c_3d(nzt, nyt, nxt, phase, cHat, FFTW_ESTIMATE)
-plan_inverse=fftwf_plan_dft_c2r_3d(nzt, nyt, nxt, cHat, phase, FFTW_ESTIMATE)
+plan        =fftwf_plan_dft_r2c_3d(nt(3), nt(2), nt(1), phase, cHat, FFTW_ESTIMATE)
+plan_inverse=fftwf_plan_dft_c2r_3d(nt(3), nt(2), nt(1), cHat, phase, FFTW_ESTIMATE)
 if (rank.eq.0) call system('ls /home/alberto.velamartin/drop_time/'//trim(weName)//&
                             '/ > ../'//trim(weName)//'dir_list.txt')
 call mpi_barrier(mpi_comm_world,error)
@@ -105,9 +102,9 @@ do
       call h5dopen_f(file_id, 'c', dset_id, error)
         call h5dread_f(dset_id, H5T_NATIVE_REAL, kur, dims, error)
       call h5dclose_f(dset_id, error)
-      do k=1,nzt
-        do j=1,nyt
-          do i=1,nxt
+      do k=1,nt(3)
+        do j=1,nt(2)
+          do i=1,nt(1)
             phase(k,j,i) = kur(i,j,k)
           enddo
         enddo
@@ -121,9 +118,9 @@ do
       call h5dopen_f(file_id, 'u', dset_id, error)
         call h5dread_f(dset_id, H5T_NATIVE_REAL, kur, dims, error)
       call h5dclose_f(dset_id, error)
-      do k=1,nzt
-        do j=1,nyt
-          do i=1,nxt
+      do k=1,nt(3)
+        do j=1,nt(2)
+          do i=1,nt(1)
             u(k,j,i) = kur(i,j,k)
           enddo
         enddo
@@ -131,9 +128,9 @@ do
       call h5dopen_f(file_id, 'v', dset_id, error)
         call h5dread_f(dset_id, H5T_NATIVE_REAL, kur, dims, error)
       call h5dclose_f(dset_id, error)
-      do k=1,nzt
-        do j=1,nyt
-          do i=1,nxt
+      do k=1,nt(3)
+        do j=1,nt(2)
+          do i=1,nt(1)
             v(k,j,i) = kur(i,j,k)
           enddo
         enddo
@@ -142,9 +139,9 @@ do
         call h5dread_f(dset_id, H5T_NATIVE_REAL, kur, dims, error)
       call h5dclose_f(dset_id, error)
     call h5fclose_f(file_id, error)
-    do k=1,nzt
-      do j=1,nyt
-        do i=1,nxt
+    do k=1,nt(3)
+      do j=1,nt(2)
+        do i=1,nt(1)
           w(k,j,i) = kur(i,j,k)
         enddo
       enddo
@@ -152,19 +149,19 @@ do
     vel(1,:,:,:)=u
     vel(2,:,:,:)=v
     vel(3,:,:,:)=w
-    write(*,*)'rmsVel',sqrt(sum(vel**2)/nzt**3/3)
+    write(*,*)'rmsVel',sqrt(sum(vel**2)/nt(3)**3/3)
     call fftwf_execute_dft_r2c(plan, phase, cHat)
-    do k=1,nzt
+    do k=1,nt(3)
       km=k-1
-      if (km.gt.nzt/2) km=km-nzt
-      kz=km*2*pi/lz
-      do j=1,nyt
+      if (km.gt.nt(3)/2) km=km-nt(3)
+      kz=km*2*pi/l(3)
+      do j=1,nt(2)
         jm=j-1
-        if (jm.gt.nyt/2) jm=jm-nyt
-        ky=jm*2*pi/ly
-        do i=1,nxt/2+1
-          kx=(i-1)*2*pi/lx
-          cHat(i,j,k) = - (kz**2 + ky**2 + kx**2) * cHat(i,j,k) /nxt/nyt/nzt
+        if (jm.gt.nt(2)/2) jm=jm-nt(2)
+        ky=jm*2*pi/l(2)
+        do i=1,nt(1)/2+1
+          kx=(i-1)*2*pi/l(1)
+          cHat(i,j,k) = - (kz**2 + ky**2 + kx**2) * cHat(i,j,k) /nt(1)/nt(2)/nt(3)
         enddo
       enddo
     enddo
@@ -174,31 +171,31 @@ do
     dxChemPotHat = (0.0,0.0)
     dyChemPotHat = (0.0,0.0)
     dzChemPotHat = (0.0,0.0)
-    do k=1,nzt
+    do k=1,nt(3)
       km=k-1
-      if (km.gt.nzt/2) km=km-nzt
+      if (km.gt.nt(3)/2) km=km-nt(3)
       if (abs(km).gt.kAlias) cycle
-      kz=km*2*pi/lz
-      do j=1,nyt
+      kz=km*2*pi/l(3)
+      do j=1,nt(2)
         jm=j-1
-        if (jm.gt.nyt/2) jm=jm-nyt
+        if (jm.gt.nt(2)/2) jm=jm-nt(2)
         if (abs(jm).gt.kAlias) cycle
-        ky=jm*2*pi/ly
-        do i=1,nxt/2+1
+        ky=jm*2*pi/l(2)
+        do i=1,nt(1)/2+1
           if (i-1.gt.kAlias) cycle
-          kx=(i-1)*2*pi/lx
-          dxChemPotHat(i,j,k) = (0.0,1.0) * kx * chemPotHat(i,j,k) /nxt/nyt/nzt
-          dyChemPotHat(i,j,k) = (0.0,1.0) * ky * chemPotHat(i,j,k) /nxt/nyt/nzt
-          dzChemPotHat(i,j,k) = (0.0,1.0) * kz * chemPotHat(i,j,k) /nxt/nyt/nzt
+          kx=(i-1)*2*pi/l(1)
+          dxChemPotHat(i,j,k) = (0.0,1.0) * kx * chemPotHat(i,j,k) /nt(1)/nt(2)/nt(3)
+          dyChemPotHat(i,j,k) = (0.0,1.0) * ky * chemPotHat(i,j,k) /nt(1)/nt(2)/nt(3)
+          dzChemPotHat(i,j,k) = (0.0,1.0) * kz * chemPotHat(i,j,k) /nt(1)/nt(2)/nt(3)
         enddo
       enddo
     enddo
     call fftwf_execute_dft_c2r(plan_inverse, dxChemPotHat, dxChemPot)
     call fftwf_execute_dft_c2r(plan_inverse, dyChemPotHat, dyChemPot)
     call fftwf_execute_dft_c2r(plan_inverse, dzChemPotHat, dzChemPot)
-    do k=1,nzt
-      do j=1,nyt
-        do i=1,nxt
+    do k=1,nt(3)
+      do j=1,nt(2)
+        do i=1,nt(1)
           surfFX(i,j,k) = phase(i,j,k) * dxChemPot(i,j,k)
           surfFY(i,j,k) = phase(i,j,k) * dyChemPot(i,j,k)
           surfFZ(i,j,k) = phase(i,j,k) * dzChemPot(i,j,k)
@@ -217,28 +214,28 @@ do
     call fftwf_execute_dft_r2c(plan, w, wHat)
     ESpec=0.0
     FSpec=0.0
-    do k=1,nzt
+    do k=1,nt(3)
       km=k-1
-      if (km.gt.nzt/2) km=km-nzt
-      kz=km*2*pi/lz
-      do j=1,nyt
+      if (km.gt.nt(3)/2) km=km-nt(3)
+      kz=km*2*pi/l(3)
+      do j=1,nt(2)
         jm=j-1
-        if (jm.gt.nyt/2) jm=jm-nyt
-        ky=jm*2*pi/ly
-        do i=1,nxt/2+1
-          kx=(i-1)*2*pi/lx
+        if (jm.gt.nt(2)/2) jm=jm-nt(2)
+        ky=jm*2*pi/l(2)
+        do i=1,nt(1)/2+1
+          kx=(i-1)*2*pi/l(1)
           r = sqrt( kz**2 + ky**2 + kx**2 )
           !Find the bin number for this radius. Bins have width 1.0/pointsPerWvNum.
-          intR = int( r*lz/2/pi + 0.5) 
+          intR = int( r*l(3)/2/pi + 0.5) 
           if(intR.le.kAlias) then
             !Half of the kx domain is missing from FFT of real, so we must double
             weight=2.0
-            if(i==1.or.i==nxt/2+1) weight=1.0
-            ESpec(intR) = ESpec(intR) + weight/nxt/nyt/nzt* & 
+            if(i==1.or.i==nt(1)/2+1) weight=1.0
+            ESpec(intR) = ESpec(intR) + weight/nt(1)/nt(2)/nt(3)* & 
                                       ( abs(uHat(i,j,k))**2 + &
                                         abs(vHat(i,j,k))**2 + &
                                         abs(wHat(i,j,k))**2 )
-            FSpec(intR) = FSpec(intR) + weight/nxt/nyt/nzt* & 
+            FSpec(intR) = FSpec(intR) + weight/nt(1)/nt(2)/nt(3)* & 
                                       ( real( conjg(uHat(i,j,k)) * surfFXHat(i,j,k) )+ &
                                         real( conjg(vHat(i,j,k)) * surfFYHat(i,j,k) )+ &
                                         real( conjg(wHat(i,j,k)) * surfFZHat(i,j,k) ))
@@ -247,9 +244,9 @@ do
       enddo
     enddo
     dropSize=0
-    do k=1,nzt
-      do j=1,nyt
-        do i=1,nxt
+    do k=1,nt(3)
+      do j=1,nt(2)
+        do i=1,nt(1)
           if(phase(i,j,k).ge.0.9)then
             s_drop(i,j,k)=1
             dropSize=dropSize+1
@@ -260,43 +257,43 @@ do
           ip=i+1
           jp=j+1
           kp=k+1
-          if(ip.gt.nxt) ip=ip-nxt
-          if(jp.gt.nyt) jp=jp-nyt
-          if(kp.gt.nzt) kp=kp-nzt
+          if(ip.gt.nt(1)) ip=ip-nt(1)
+          if(jp.gt.nt(2)) jp=jp-nt(2)
+          if(kp.gt.nt(3)) kp=kp-nt(3)
           im=i-1
           jm=j-1
           km=k-1
-          if(im.lt.1) im=im+nxt
-          if(jm.lt.1) jm=jm+nyt
-          if(km.lt.1) km=km+nzt
-          nor(1,i,j,k)=(phase(ip,j,k)-phase(im,j,k))*(0.5/dx)
-          nor(2,i,j,k)=(phase(i,jp,k)-phase(i,jm,k))*(0.5/dy)
-          nor(3,i,j,k)=(phase(i,j,kp)-phase(i,j,km))*(0.5/dz)
+          if(im.lt.1) im=im+nt(1)
+          if(jm.lt.1) jm=jm+nt(2)
+          if(km.lt.1) km=km+nt(3)
+          nor(1,i,j,k)=(phase(ip,j,k)-phase(im,j,k))*(0.5/dx(1))
+          nor(2,i,j,k)=(phase(i,jp,k)-phase(i,jm,k))*(0.5/dx(2))
+          nor(3,i,j,k)=(phase(i,j,kp)-phase(i,j,km))*(0.5/dx(3))
           modnor=sqrt(nor(1,i,j,k)**2+nor(2,i,j,k)**2+nor(3,i,j,k)**2)
           !outward pointing normal
           nor(:,i,j,k)=-nor(:,i,j,k)/modnor
         enddo
       enddo
     enddo
-    do k=1,nzt
-      do j=1,nyt
-        do i=1,nxt
+    do k=1,nt(3)
+      do j=1,nt(2)
+        do i=1,nt(1)
           im=i-1
           jm=j-1
           km=k-1
-          if(im.lt.1) im=im+nxt
-          if(jm.lt.1) jm=jm+nyt
-          if(km.lt.1) km=km+nzt
+          if(im.lt.1) im=im+nt(1)
+          if(jm.lt.1) jm=jm+nt(2)
+          if(km.lt.1) km=km+nt(3)
           ip=i+1
           jp=j+1
           kp=k+1
-          if(ip.gt.nxt) ip=ip-nxt
-          if(jp.gt.nyt) jp=jp-nyt
-          if(kp.gt.nzt) kp=kp-nzt
+          if(ip.gt.nt(1)) ip=ip-nt(1)
+          if(jp.gt.nt(2)) jp=jp-nt(2)
+          if(kp.gt.nt(3)) kp=kp-nt(3)
           !compute curvature in backward direction
-          kur(i,j,k)=(nor(1,ip,j,k)-nor(1,im,j,k))*(0.5/dx)+ &
-                     (nor(2,i,jp,k)-nor(2,i,jm,k))*(0.5/dy)+ &
-                     (nor(3,i,j,kp)-nor(3,i,j,km))*(0.5/dz)
+          kur(i,j,k)=(nor(1,ip,j,k)-nor(1,im,j,k))*(0.5/dx(1))+ &
+                     (nor(2,i,jp,k)-nor(2,i,jm,k))*(0.5/dx(2))+ &
+                     (nor(3,i,j,kp)-nor(3,i,j,km))*(0.5/dx(3))
         enddo
       enddo
     enddo
@@ -316,9 +313,9 @@ do
     dropVel=0.0
     !make histograms of drop mass in each direction so we can avoid overlap with periodic 
     !boundaries in moment of inertia calculations
-    do k=1,nzt
-      do j=1,nyt
-        do i=1,nxt
+    do k=1,nt(3)
+      do j=1,nt(2)
+        do i=1,nt(1)
           if(s_drop(i,j,k).ne.0) then
             hist(1)%v(i) = hist(1)%v(i) + invSize
             hist(2)%v(j) = hist(2)%v(j) + invSize
@@ -353,27 +350,27 @@ do
       enddo 
     enddo
     MoI=0.0
-    do k=1,nzt
+    do k=1,nt(3)
       pos(3)=k
-      if(last1(3).lt.last0(3).and.k.le.last1(3)) pos(3) = k+nzt
-      do j=1,nyt
+      if(last1(3).lt.last0(3).and.k.le.last1(3)) pos(3) = k+nt(3)
+      do j=1,nt(2)
         pos(2)=j
-        if(last1(2).lt.last0(2).and.j.le.last1(2)) pos(2) = j+nyt
-        do i=1,nxt
+        if(last1(2).lt.last0(2).and.j.le.last1(2)) pos(2) = j+nt(2)
+        do i=1,nt(1)
           pos(1)=i
-          if(last1(1).lt.last0(1).and.i.le.last1(1)) pos(1) = i+nxt
+          if(last1(1).lt.last0(1).and.i.le.last1(1)) pos(1) = i+nt(1)
           !use https://en.wikipedia.org/wiki/Moment_of_inertia#Inertia_tensor
           !Bunner & Tryggvason JFM 2003 misses out on diag part of MoI definition
           !don't bother moving dropPos inside domain until after the moment of inertia calculations
           if(s_drop(i,j,k).ne.0) then
             !contribution from each cell
-            diag=dx**5*(1.0/6.0)
+            diag=dx(1)**5*(1.0/6.0)
             do ii=1,3
-              diag = diag + ( pos(ii)-dropPos(1,ii) )**2 *dx**5
+              diag = diag + ( pos(ii)-dropPos(1,ii) )**2 *dx(1)**5
             enddo
             do ii=1,3
               do jj=1,3
-                MoI(ii,jj) = MoI(ii,jj) - ( pos(ii)-dropPos(1,ii) )*( pos(jj)-dropPos(1,jj) )*dx**5
+                MoI(ii,jj) = MoI(ii,jj) - ( pos(ii)-dropPos(1,ii) )*( pos(jj)-dropPos(1,jj) )*dx(1)**5
                 if(ii.eq.jj) MoI(ii,jj) = MoI(ii,jj) + diag
               enddo
             enddo
@@ -389,21 +386,21 @@ do
             kq = k
             if (ii.eq.1) then
               ip=i+1
-              if(ip.gt.nxt)ip=ip-nxt
+              if(ip.gt.nt(1))ip=ip-nt(1)
               iq=i-1
-              if(iq.lt.1)  iq=iq+nxt
+              if(iq.lt.1)  iq=iq+nt(1)
             endif
             if (ii.eq.2) then
               jp=j+1
-              if(jp.gt.nyt)jp=jp-nyt
+              if(jp.gt.nt(2))jp=jp-nt(2)
               jq=j-1
-              if(jq.lt.1)  jq=jq+nyt
+              if(jq.lt.1)  jq=jq+nt(2)
             endif
             if (ii.eq.3) then
               kp=k+1
-              if(kp.gt.nzt)kp=kp-nzt
+              if(kp.gt.nt(3))kp=kp-nt(3)
               kq=k-1
-              if(kq.lt.1)  kq=kq+nzt
+              if(kq.lt.1)  kq=kq+nt(3)
             endif
             if (s_drop(ip,jp,kp).ne.s_drop(i,j,k)) faces = faces + 1
             if (s_drop(ip,jp,kp).ne.s_drop(i,j,k).or.s_drop(iq,jq,kq).ne.s_drop(i,j,k)) onInt=1
@@ -415,9 +412,9 @@ do
             do ii=1,3
               if(abs(nor(ii,i,j,k)).gt.maxNor)then
                 maxNor = abs(nor(ii,i,j,k))
-                if(ii.eq.1)dA=dy*dz
-                if(ii.eq.2)dA=dz*dx
-                if(ii.eq.3)dA=dx*dy
+                if(ii.eq.1)dA=dx(2)*dx(3)
+                if(ii.eq.2)dA=dx(3)*dx(1)
+                if(ii.eq.3)dA=dx(1)*dx(2)
               endif
             enddo
             !area of interface is 
@@ -440,13 +437,13 @@ do
           paint=0
           do kq=0,1
             kp = k + kq
-            if(kp.gt.nzt) kp=kp-nzt
+            if(kp.gt.nt(3)) kp=kp-nt(3)
             do jq=0,1
               jp = j + jq
-              if(jp.gt.nyt) jp=jp-nyt
+              if(jp.gt.nt(2)) jp=jp-nt(2)
               do iq=0,1
                 ip = i + iq
-                if(ip.gt.nxt) ip=ip-nxt
+                if(ip.gt.nt(1)) ip=ip-nt(1)
                 neigh(iq,jq,kq)=s_drop(ip,jp,kp)
                 if(s_drop(ip,jp,kp).ne.0) then
                   cols=cols+1
@@ -561,52 +558,7 @@ do
         dropPos(mom,ii)=dropPos(mom,ii) * ( l(ii)/nt(ii) )**mom
       enddo
     enddo
-    dVeldxBox=0.0
-    jj=1
-    ip = pos(1) + boxWid
-    ip = modulo(ip-1, nt(jj)) + 1
-    im = pos(1) - boxWid
-    im = modulo(im-1, nt(jj)) + 1
-    nVels = 0
-    do k = pos(3)-boxWid, pos(3)+boxWid
-      kp = modulo(k-1, nzt) + 1
-      do j = pos(2)-boxWid, pos(2)+boxWid
-        jp = modulo(j-1, nyt) + 1
-        nVels = nVels + 1
-        dVeldx(:) = (vel(:,ip,jp,kp) - vel(:,im,jp,kp)) / dx / boxWid
-        dVeldxBox(:,jj) = dVeldxBox(:,jj) + ( dVeldx(:) - dVeldxBox(:,jj) ) / nVels
-      enddo
-    enddo
-    jj=2
-    jp = pos(jj) + boxWid
-    jp = modulo(jp-1, nt(jj)) + 1
-    jm = pos(jj) - boxWid
-    jm = modulo(jm-1, nt(jj)) + 1
-    nVels = 0
-    do k = pos(3)-boxWid, pos(3)+boxWid
-      kp = modulo(k-1, nzt) + 1
-      do i = pos(1)-boxWid, pos(1)+boxWid
-        ip = modulo(i-1, nxt) + 1
-        nVels = nVels + 1
-        dVeldx(:) = (vel(:,ip,jp,kp) - vel(:,ip,jm,kp)) / dy / boxWid
-        dVeldxBox(:,jj) = dVeldxBox(:,jj) + ( dVeldx(:) - dVeldxBox(:,jj) ) / nVels
-      enddo
-    enddo
-    jj=3
-    kp = pos(jj) + boxWid
-    kp = modulo(kp-1, nt(jj)) + 1
-    km = pos(jj) - boxWid
-    km = modulo(km-1, nt(jj)) + 1
-    nVels = 0
-    do j = pos(2)-boxWid, pos(2)+boxWid
-      jp = modulo(j-1, nyt) + 1
-      do i = pos(1)-boxWid, pos(1)+boxWid
-        ip = modulo(i-1, nxt) + 1
-        nVels = nVels + 1
-        dVeldx(:) = (vel(:,ip,jp,kp) - vel(:,ip,jp,km)) / dz / boxWid
-        dVeldxBox(:,jj) = dVeldxBox(:,jj) + ( dVeldx(:) - dVeldxBox(:,jj) ) / nVels
-      enddo
-    enddo
+    call velGradBox(pos,vel,dVeldxBox)
     do ii=1,3
       do jj=1,3
         strainBox(ii,jj) = 0.5*(dVeldxBox(ii,jj) + dVeldxBox(jj,ii))
@@ -645,12 +597,13 @@ do
     flush(straU)
     !write(topoU,'(ES16.7E3, 4i16)') time,vertices,edges,faces,genus
     !flush(topoU)
-    write(str,'(a,i0,a)') '(',nzt/2+2,'(ES16.7E3))'
+    write(str,'(a,i0,a)') '(',nt(3)/2+2,'(ES16.7E3))'
     write(specU,str) time,ESpec 
     flush(specU)
     write(forcU,str) time,FSpec 
     write(vortU,'(4ES16.7E3)') time, vort
     flush(vortU)
+  enddo
   close(posiU,status='keep')
   close(veloU,status='keep')
   close(MoInU,status='keep')
@@ -665,7 +618,6 @@ do
   call system('rm file_list.txt')
   call system('./transpose.awk.sh output/ESpec.txt > output/ESpecTransp.txt')
   call system('./transpose.awk.sh output/FSpec.txt > output/FSpecTransp.txt')
-enddo
 enddo
 do ii=1,3
   deallocate(hist(ii)%v)

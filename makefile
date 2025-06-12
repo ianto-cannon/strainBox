@@ -7,19 +7,24 @@ FFLAGS = -mcmodel=large -fconvert=big-endian -ffixed-line-length-140 -fno-align-
          -I$(HDF5_INC) -g \
          -O0 -Wall -fcheck=all -fsanitize=address -fno-omit-frame-pointer
          #-O3 
+
 # Libraries
 LIBS = -L$(HDF5_LIB) -Wl,-rpath,$(HDF5_LIB) \
        -llapack -lhdf5_fortran -lhdf5 -lfftw3 -lfftw3f
 
-# Sources and executable
-SRC = ./strainBox.f90
+# Sources and objects
+OBJS = modVelGrad.o strainBox.o
 EXE = strainBox
 
 # Rules
 all: $(EXE)
 
-$(EXE): $(SRC)
-	$(FC) $(FFLAGS) $^ -o $@ $(LIBS)
+$(EXE): $(OBJS)
+	$(FC) $(FFLAGS) -o $@ $^ $(LIBS)
+
+%.o: %.f90
+	$(FC) $(FFLAGS) -c $<
 
 clean:
 	rm -f $(EXE) *.mod *.o
+
