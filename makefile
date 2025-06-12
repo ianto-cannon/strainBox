@@ -3,10 +3,9 @@ HDF5_LIB = $(HOME)/drops/boxStrain/src/lib/hdf5_parallel/lib
 
 # Compiler and flags
 FC = mpif90
+DBG = #-O0 -Wall -fcheck=all -fsanitize=address -fno-omit-frame-pointer -g
 FFLAGS = -mcmodel=large -fconvert=big-endian -ffixed-line-length-140 -fno-align-commons -cpp \
-         -I$(HDF5_INC) -g \
-         -O0 -Wall -fcheck=all -fsanitize=address -fno-omit-frame-pointer
-         #-O3 
+         -I$(HDF5_INC) -O3 $(DBG)
 
 # Libraries
 LIBS = -L$(HDF5_LIB) -Wl,-rpath,$(HDF5_LIB) \

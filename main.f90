@@ -3,7 +3,7 @@ use hdf5
 !use, intrinsic :: ISO_FORTRAN_ENV
 use, intrinsic :: iso_c_binding
 use mpi
-use modVelGrad, only : velGradBox, nt, l, dx
+use modVelGrad, only : velGradBox, velGradBlob, saveStrain, nt, l, dx
 implicit none
 include 'fftw3.f03'
 type ragged_array
@@ -25,13 +25,13 @@ integer, dimension(0:1,0:1,0:1) :: paint, neigh
 integer, dimension(3)  :: last0,last1,pos
 integer :: i,j,k,ip,jp,kp,iq,jq,kq,iShifted,mom,ii,jj,im,jm,km
 integer :: cols,paintIt,faceOnCorner,genus,onInt,error,intR,ios,rank,ntask
-integer :: statU,posiU,veloU,MoInU,topoU,straU,dVelU,dirU,listU,specU,forcU,vortU
+integer :: statU,posiU,veloU,MoInU,topoU,dirU,listU,specU,forcU
 integer :: runNum
 real, dimension(maxMom,3) :: dropPos, dropVel
-real, dimension(3) :: MoIEiVals, strainEiVals, vort
-real, dimension(3,3) :: MoI, dVeldxBox, strainBox
+real, dimension(3) :: MoIEiVals
+real, dimension(3,3) :: MoI, dVeldx
 real :: diag,deformation,dropArea,dA,Cn,r,time,work(8),We,res,kx,ky,kz,weight
-real :: maxNor,kurMean,kurStdDev,kurInv,kurInvSq,invSize,QInva,RInva,surPow
+real :: maxNor,kurMean,kurStdDev,kurInv,kurInvSq,invSize,surPow
 type(ragged_array) :: hist(3) !histogram of drop mass in x, y and z directions
 !integer(kind=int64) :: dropSize, faces, edges, vertices
 integer :: dropSize, faces, edges, vertices
@@ -70,25 +70,23 @@ do
   !outDir='../'//trim(weName)//trim(runName)
   outDir='output/'
   call system('mkdir '//trim(outDir))
-  !call system('ls '//trim(inDir)//'/field*.h5 > '//trim(outDir)//'/file_list.txt')
-  call system('ls '//trim(inDir)//'/field.008.h5 > '//trim(outDir)//'/file_list.txt')
+  call system('ls '//trim(inDir)//'/field*.h5 > '//trim(outDir)//'/file_list.txt')
+  !call system('ls '//trim(inDir)//'/field.008.h5 > '//trim(outDir)//'/file_list.txt')
   fileEnd='.txt'
   open(newunit=statU,file=trim(outDir)//'/statDrops'//trim(fileEnd), access='append',form='formatted',status='REPLACE')
   open(newunit=posiU,file=trim(outDir)//'/posiDrops'//trim(fileEnd),access='append',form='formatted',status='REPLACE')
   open(newunit=veloU,file=trim(outDir)//'/veloDrops'//trim(fileEnd),access='append',form='formatted',status='REPLACE')
   open(newunit=MoInU,file=trim(outDir)//'/MoInDrops'//trim(fileEnd),access='append',form='formatted',status='REPLACE')
-  open(newunit=dVelU,file=trim(outDir)//'/dVeldxBox'//trim(fileEnd),access='append',form='formatted',status='REPLACE')
-  open(newunit=straU,file=trim(outDir)//'/strainBox'//trim(fileEnd),access='append',form='formatted',status='REPLACE')
   open(newunit=topoU,file=trim(outDir)//'/topoDrops'//trim(fileEnd),access='append',form='formatted',status='REPLACE')
   open(newunit=specU,file=trim(outDir)//'/ESpec'//trim(fileEnd),access='append',form='formatted',status='REPLACE')
   open(newunit=forcU,file=trim(outDir)//'/FSpec'//trim(fileEnd),access='append',form='formatted',status='REPLACE')
-  open(newunit=vortU,file=trim(outDir)//'/vortBox'//trim(fileEnd),access='append',form='formatted',status='REPLACE')
   !Open the generated file list
   open(newunit=listU, file=trim(outDir)//'/file_list.txt', status='old', action='read')
   !Loop through file names
   do
     read(listU, '(A)', iostat=ios) filename
     if (ios /= 0) exit
+    write(*,*) trim(filename)
     flush(6)
     ! Open the file (read-only)
     call h5open_f(error)
@@ -349,6 +347,7 @@ do
         enddo
       enddo 
     enddo
+    write(*,*)'l350'
     MoI=0.0
     do k=1,nt(3)
       pos(3)=k
@@ -545,6 +544,7 @@ do
       if (error.ne.0) write(*,*) 'dropSize', dropSize, 'MoIEiVals', MoIEiVals
       deformation=sqrt(MoIEiVals(3)/MoIEiVals(1))
     endif
+    write(*,*)'l546'
     do ii=1,3
       !move drop back inside domain
       if(dropPos(1,ii).ge.nt(ii)+1) then
@@ -558,29 +558,56 @@ do
         dropPos(mom,ii)=dropPos(mom,ii) * ( l(ii)/nt(ii) )**mom
       enddo
     enddo
-    call velGradBox(pos,vel,dVeldxBox)
-    call velGradBlob(drop,vel,dVeldxDrop)
-    do ii=1,3
-      do jj=1,3
-        strainBox(ii,jj) = 0.5*(dVeldxBox(ii,jj) + dVeldxBox(jj,ii))
-      enddo
-    enddo
-    !vorticity = curl(u) = del x u
-    vort(1) = dVeldxBox(3,2) - dVeldxBox(2,3)
-    vort(2) = dVeldxBox(1,3) - dVeldxBox(3,1)
-    vort(3) = dVeldxBox(2,1) - dVeldxBox(1,2)
-    do j = 1,3
-      do i = 1,3
-        !Q citerion as equation (4) from Paul22roleOfBreakup
-        QInva = QInva - 0.5*dVeldxBox(i,j)*dVeldxBox(j,i)
-        do k = 1,3
-          !Third invariant of velocty grad tensor as equation (5) from Paul22roleOfBreakup
-          !Assumes incompressibility so that 3*det(dVeldxBox)=tr(dVeldxBox^3)
-          RInva = RInva - (1.0/3.0)*dVeldxBox(i,j)*dVeldxBox(j,k)*dVeldxBox(k,i) 
+    write(*,*)'l561'
+    call velGradBlob(drop,vel,dVeldx)
+    call saveStrain(outDir,'Drop',time,dVeldx)
+    write(*,*)'l554'
+    call velGradBox(pos,vel,dVeldx)
+    call saveStrain(outDir,'Box',time,dVeldx)
+    write(*,*)'l565'
+    do k=rad+1, nzl-rad, rad
+      do j=rad+1, nyl-rad, rad
+        do i=rad+1, nxl-rad, rad
+          ballAv=0.0
+          nMaskInBall=0
+          nFldInBall=0
+          do kk=k-rad,k+rad
+            if ( ((k-kk)**2) .gt. rad**2) cycle
+            do jj=j-rad,j+rad
+              if ( ((k-kk)**2 + (j-jj)**2) .gt. rad**2) cycle
+              do ii=i-rad,i+rad
+                if ( ((k-kk)**2 + (j-jj)**2 + (i-ii)**2) .gt. rad**2) cycle
+                if(mask%f(ii,jj,kk).gt.0.5) then
+                  nMaskInBall = nMaskInBall + 1
+                  !ignore field inside particles
+                  if(excludeMask) cycle
+                endif
+                nFldInBall = nFldInBall + 1
+                ballAv = ballAv * (1.0-1.0/nFldInBall) + fld%f(ii,jj,kk)/nFldInBall
+              enddo
+            enddo
+          enddo
+    do k=1,nt(3)
+      write(*,*)'l569k',k
+      kp = abs(pos(3) - k)
+      if (kp.gt.nt(3)/2) kp = kp - nt(3) 
+      do j=1,nt(2)
+        jp = abs(pos(2) - j)
+        if (jp.gt.nt(2)/2) jp = jp - nt(2) 
+        do i=1,nt(1)
+          ip = abs(pos(1) - i)
+          if (ip.gt.nt(1)/2) ip = ip - nt(1) 
+          if ( (nt(1)/6.)**2 .lt. ip**2+jp**2+kp**2 ) then
+            drop = 1
+          else
+            drop = 0
+          endif
         enddo
       enddo
     enddo
-    call SSYEV('V','U',3,strainBox,3,strainEiVals,work,8,error)
+    write(*,*)'l581'
+    call velGradBlob(drop,vel,dVeldx)
+    call saveStrain(outDir,'Sphere',time,dVeldx)
     write(statU,'(ES16.7E3,i16,4ES16.7E3,6i16,3ES16.7E3)') time,dropSize,dropArea,deformation,kurMean,kurStdDev,&
           last0(:),last1(:),kurInv,kurInvSq,surPow
     flush(statU)
@@ -592,30 +619,21 @@ do
     flush(veloU)
     write(MoInU,'(13ES16.7E3)') time, MoIEiVals, MoI
     flush(MoInU)
-    write(dVelU,'(13ES16.7E3)') time, QInva, RInva, dVeldxBox
-    flush(dVelU)
-    write(straU,'(13ES16.7E3)') time, strainEiVals, strainBox
-    flush(straU)
-    !write(topoU,'(ES16.7E3, 4i16)') time,vertices,edges,faces,genus
-    !flush(topoU)
+    write(topoU,'(ES16.7E3, 4i16)') time,vertices,edges,faces,genus
+    flush(topoU)
     write(str,'(a,i0,a)') '(',nt(3)/2+2,'(ES16.7E3))'
     write(specU,str) time,ESpec 
     flush(specU)
     write(forcU,str) time,FSpec 
-    write(vortU,'(4ES16.7E3)') time, vort
-    flush(vortU)
   enddo
   close(posiU,status='keep')
   close(veloU,status='keep')
   close(MoInU,status='keep')
-  close(dVelU,status='keep')
-  close(straU,status='keep')
   close(statU,status='keep')
   close(topoU,status='keep')
   close(specU,status='keep')
   close(forcU,status='keep')
   close(listU)
-  close(vortU)
   call system('rm file_list.txt')
   call system('./transpose.awk.sh output/ESpec.txt > output/ESpecTransp.txt')
   call system('./transpose.awk.sh output/FSpec.txt > output/FSpecTransp.txt')
