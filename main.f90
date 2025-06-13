@@ -38,6 +38,7 @@ integer :: dropSize, faces, edges, vertices
 character(len=200) :: fileEnd, str
 integer(hid_t) :: file_id, dset_id
 integer(hsize_t) :: dims(3)=(/nt(1),nt(2),nt(3)/),  dims1d(1)=(/1/) 
+complex :: eikdotx
 complex, dimension(nt(1)/2+1,nt(2),nt(3)) :: cHat,chemPotHat,dxChemPotHat,dyChemPotHat,dzChemPotHat
 complex, dimension(nt(1)/2+1,nt(2),nt(3)) :: surfFXHat,surfFYHat,surfFZHat,uHat,vHat,wHat
 real, dimension(0:kAlias) :: FSpec,ESpec
@@ -458,10 +459,10 @@ do
         enddo
       endif
       !integer coordinates of drop centre are used to make sphere and box
-      pos(ii) = floor(dropPos(1,ii))
+      pos(ii) = nint(dropPos(1,ii))
       !put in units of simulation domain size
       do mom=1,maxMom
-        dropPos(mom,ii)=dropPos(mom,ii) * ( l(ii)/nt(ii) )**mom
+        dropPos(mom,ii)=dropPos(mom,ii) * dx(ii)**mom
       enddo
     enddo
     !call velGradBlob(drop,vel,dVeldx)
@@ -469,7 +470,7 @@ do
     call velGradBox(pos,vel,dVeldx)
     call saveStrain(outDir,'Box',time,dVeldx)
     !compute the strain in a sphere with same diameter as drop
-    intR = (nt(1)/6.)**2
+    intR = nint((nt(1)/6.)**2)
     do k=1,nt(3)
       kp = abs(pos(3) - k)
       if (kp.gt.nt(3)/2) kp = kp - nt(3) 
@@ -575,25 +576,40 @@ do
                                       ( abs(uHat(i,j,k))**2 + &
                                         abs(vHat(i,j,k))**2 + &
                                         abs(wHat(i,j,k))**2 )
-            FSpec(intR) = FSpec(intR) + weight/nt(1)/nt(2)/nt(3)* & 
+            FSpec(intR) = FSpec(intR) + weight* & 
                                       ( real( conjg(uHat(i,j,k)) * surfFXHat(i,j,k) )+ &
                                         real( conjg(vHat(i,j,k)) * surfFYHat(i,j,k) )+ &
                                         real( conjg(wHat(i,j,k)) * surfFZHat(i,j,k) ))
           endif
-          !if(r.lt.2*pi*l(3)/6.) then
-            dVeldx(1,1) = dVeldx(1,1) + weight * real( uHat(i,j,k) * exp( cmplx(0.0, sum( wavNum(:)*dropPos(1,:)))))
-            dVeldx(1,2) = dVeldx(1,2) + weight * real( vHat(i,j,k) * exp( cmplx(0.0, sum( wavNum(:)*dropPos(1,:)))))
-            dVeldx(1,3) = dVeldx(1,3) + weight * real( wHat(i,j,k) * exp( cmplx(0.0, sum( wavNum(:)*dropPos(1,:)))))
-          !endif
+          if(r.lt.2*pi*6./l(3)) then
+            !ikx(1) = (i-1)*(dropPos(1,1)-1) + (j-1)*(dropPos(1,2)-1) + (i-1)*(dropPos(1,3)-1) )
+            !ikx = cmplx(0.0, 2.0) * pi * ikx / l
+            eikdotx = exp( cmplx(0.0, sum( wavNum(:)*dropPos(1,:))))
+            do ii = 1,3
+              dVeldx(1,ii) = dVeldx(1,ii) + weight * real( cmplx(0.0, wavNum(ii) ) * uHat(i,j,k) * eikdotx)
+              dVeldx(2,ii) = dVeldx(2,ii) + weight * real( cmplx(0.0, wavNum(ii) ) * vHat(i,j,k) * eikdotx)
+              dVeldx(3,ii) = dVeldx(3,ii) + weight * real( cmplx(0.0, wavNum(ii) ) * wHat(i,j,k) * eikdotx)
+            enddo
+            !dVeldx(1,:) = dVeldx(1,:) + weight * real( uHat(i,j,k) * exp(ikx) )
+            !dVeldx(2,:) = dVeldx(2,:) + weight * real( ikx* vHat(i,j,k) * exp(ikx) )
+            !dVeldx(3,:) = dVeldx(3,:) + weight * real( ikx * wHat(i,j,k) * exp(ikx) )
+          else
+            uHat(i,j,k)=0.0
+            vHat(i,j,k)=0.0
+            wHat(i,j,k)=0.0
+          endif
         enddo
       enddo
     enddo
-    write(*,*) 'dropVel',dropVel
-    write(*,*) 'dropU',u(pos(1),pos(2),pos(3))
-    write(*,*) 'dropV',v(pos(1),pos(2),pos(3))
-    write(*,*) 'dropW',w(pos(1),pos(2),pos(3))
-    write(*,*) 'dVeldx',dVeldx
-    !call saveStrain(outDir,'Modes',time,dVeldx)
+    call saveStrain(outDir,'Modes',time,dVeldx)
+    uHat=uHat/nt(1)/nt(2)/nt(3)
+    vHat=vHat/nt(1)/nt(2)/nt(3)
+    wHat=wHat/nt(1)/nt(2)/nt(3)
+    call fftwf_execute_dft_c2r(plan_inverse, uHat, vel(1,:,:,:))
+    call fftwf_execute_dft_c2r(plan_inverse, vHat, vel(2,:,:,:))
+    call fftwf_execute_dft_c2r(plan_inverse, wHat, vel(3,:,:,:))
+    call velGradBox(pos,vel,dVeldx)
+    call saveStrain(outDir,'LowPassBox',time,dVeldx)
     write(statU,'(ES16.7E3,i16,4ES16.7E3,6i16,3ES16.7E3)') time,dropSize,dropArea,deformation,kurMean,kurStdDev,&
           last0(:),last1(:),kurInv,kurInvSq,surPow
     flush(statU)
@@ -603,7 +619,9 @@ do
     flush(posiU)
     write(veloU,str) time, (dropVel(mom,:),mom=1,maxMom)
     flush(veloU)
-    write(MoInU,'(13ES16.7E3)') time, MoIEiVals, MoI
+    !write(MoInU,'(13ES16.7E3)') time, MoIEiVals, MoI
+    write(MoInU,'(10ES16.7E3)') time, dropVel(1,:),&
+        u(pos(1),pos(2),pos(3)),v(pos(1),pos(2),pos(3)),w(pos(1),pos(2),pos(3)),dVeldx(1,:)
     flush(MoInU)
     write(topoU,'(ES16.7E3, 4i16)') time,vertices,edges,faces,genus
     flush(topoU)
