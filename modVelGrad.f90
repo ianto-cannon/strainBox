@@ -63,9 +63,8 @@ subroutine velGradBlob(blob,vel,dVeldxTot)
 integer, intent(in), dimension(nt(1),nt(2),nt(3)) :: blob
 real, intent(in), dimension(3,nt(1),nt(2),nt(3)) :: vel
 real, intent(out), dimension(3,3) :: dVeldxTot
-real :: width
 integer :: i,j,k,p,nVels,firs0,last0
-real :: dVeldx(3)
+real :: dVeldx(3), width
 dVeldxTot=0.0
 nVels = 0
 do k=1,nt(3)
@@ -82,7 +81,7 @@ do k=1,nt(3)
       width = (firs0 - last0)*dx(1)
       if (width.lt.0.0) width = width + l(1)
       nVels = nVels + 1
-      dVeldx(:) = (vel(:,firs0,j,k) - vel(:,last0,j,k)) / dx(1) / width
+      dVeldx(:) = (vel(:,firs0,j,k) - vel(:,last0,j,k)) / width
       dVeldxTot(:,1) = dVeldxTot(:,1) + ( dVeldx(:) - dVeldxTot(:,1) ) / nVels
     endif
   enddo
@@ -102,7 +101,7 @@ do k=1,nt(3)
       width = (firs0 - last0)*dx(2)
       if (width.lt.0.0) width = width + l(2)
       nVels = nVels + 1
-      dVeldx(:) = (vel(:,i,firs0,k) - vel(:,i,last0,k)) / dx(2) / width
+      dVeldx(:) = (vel(:,i,firs0,k) - vel(:,i,last0,k)) / width
       dVeldxTot(:,2) = dVeldxTot(:,2) + ( dVeldx(:) - dVeldxTot(:,2) ) / nVels
     endif
   enddo
@@ -122,8 +121,8 @@ do j=1,nt(2)
       width = (firs0 - last0)*dx(3)
       if (width.lt.0.0) width = width + l(3)
       nVels = nVels + 1
-      dVeldx(:) = (vel(:,i,j,firs0) - vel(:,i,j,last0)) / dx(3) / width
-      dVeldxTot(:,1) = dVeldxTot(:,3) + ( dVeldx(:) - dVeldxTot(:,3) ) / nVels
+      dVeldx(:) = (vel(:,i,j,firs0) - vel(:,i,j,last0)) / width
+      dVeldxTot(:,3) = dVeldxTot(:,3) + ( dVeldx(:) - dVeldxTot(:,3) ) / nVels
     endif
   enddo
 enddo

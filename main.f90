@@ -28,9 +28,9 @@ integer :: cols,paintIt,faceOnCorner,genus,onInt,error,intR,ios,rank,ntask
 integer :: statU,posiU,veloU,MoInU,topoU,dirU,listU,specU,forcU
 integer :: runNum
 real, dimension(maxMom,3) :: dropPos, dropVel
-real, dimension(3) :: MoIEiVals
+real, dimension(3) :: MoIEiVals, wavNum
 real, dimension(3,3) :: MoI, dVeldx
-real :: diag,deformation,dropArea,dA,Cn,r,time,work(8),We,res,kx,ky,kz,weight
+real :: diag,deformation,dropArea,dA,Cn,r,time,work(8),We,res,weight
 real :: maxNor,kurMean,kurStdDev,kurInv,kurInvSq,invSize,surPow
 type(ragged_array) :: hist(3) !histogram of drop mass in x, y and z directions
 !integer(kind=int64) :: dropSize, faces, edges, vertices
@@ -148,99 +148,6 @@ do
     vel(2,:,:,:)=v
     vel(3,:,:,:)=w
     write(*,*)'rmsVel',sqrt(sum(vel**2)/nt(3)**3/3)
-    call fftwf_execute_dft_r2c(plan, phase, cHat)
-    do k=1,nt(3)
-      km=k-1
-      if (km.gt.nt(3)/2) km=km-nt(3)
-      kz=km*2*pi/l(3)
-      do j=1,nt(2)
-        jm=j-1
-        if (jm.gt.nt(2)/2) jm=jm-nt(2)
-        ky=jm*2*pi/l(2)
-        do i=1,nt(1)/2+1
-          kx=(i-1)*2*pi/l(1)
-          cHat(i,j,k) = - (kz**2 + ky**2 + kx**2) * cHat(i,j,k) /nt(1)/nt(2)/nt(3)
-        enddo
-      enddo
-    enddo
-    call fftwf_execute_dft_c2r(plan_inverse, cHat, dxxPhase)
-    chemPot = 1/Cn * (phase*phase - 1)*phase - Cn*dxxPhase
-    call fftwf_execute_dft_r2c(plan, chemPot, chemPotHat)
-    dxChemPotHat = (0.0,0.0)
-    dyChemPotHat = (0.0,0.0)
-    dzChemPotHat = (0.0,0.0)
-    do k=1,nt(3)
-      km=k-1
-      if (km.gt.nt(3)/2) km=km-nt(3)
-      if (abs(km).gt.kAlias) cycle
-      kz=km*2*pi/l(3)
-      do j=1,nt(2)
-        jm=j-1
-        if (jm.gt.nt(2)/2) jm=jm-nt(2)
-        if (abs(jm).gt.kAlias) cycle
-        ky=jm*2*pi/l(2)
-        do i=1,nt(1)/2+1
-          if (i-1.gt.kAlias) cycle
-          kx=(i-1)*2*pi/l(1)
-          dxChemPotHat(i,j,k) = (0.0,1.0) * kx * chemPotHat(i,j,k) /nt(1)/nt(2)/nt(3)
-          dyChemPotHat(i,j,k) = (0.0,1.0) * ky * chemPotHat(i,j,k) /nt(1)/nt(2)/nt(3)
-          dzChemPotHat(i,j,k) = (0.0,1.0) * kz * chemPotHat(i,j,k) /nt(1)/nt(2)/nt(3)
-        enddo
-      enddo
-    enddo
-    call fftwf_execute_dft_c2r(plan_inverse, dxChemPotHat, dxChemPot)
-    call fftwf_execute_dft_c2r(plan_inverse, dyChemPotHat, dyChemPot)
-    call fftwf_execute_dft_c2r(plan_inverse, dzChemPotHat, dzChemPot)
-    do k=1,nt(3)
-      do j=1,nt(2)
-        do i=1,nt(1)
-          surfFX(i,j,k) = phase(i,j,k) * dxChemPot(i,j,k)
-          surfFY(i,j,k) = phase(i,j,k) * dyChemPot(i,j,k)
-          surfFZ(i,j,k) = phase(i,j,k) * dzChemPot(i,j,k)
-        enddo
-      enddo
-    enddo
-    !do k=1,250
-    !  write(vortU,'(256ES16.7E3)') u(:,k,100)
-    !enddo
-    surPow = sum(surfFX*u + surfFY*v + surfFZ*w)
-    call fftwf_execute_dft_r2c(plan, surfFX, surfFXHat)
-    call fftwf_execute_dft_r2c(plan, surfFY, surfFYHat)
-    call fftwf_execute_dft_r2c(plan, surfFZ, surfFZHat)
-    call fftwf_execute_dft_r2c(plan, u, uHat)
-    call fftwf_execute_dft_r2c(plan, v, vHat)
-    call fftwf_execute_dft_r2c(plan, w, wHat)
-    ESpec=0.0
-    FSpec=0.0
-    do k=1,nt(3)
-      km=k-1
-      if (km.gt.nt(3)/2) km=km-nt(3)
-      kz=km*2*pi/l(3)
-      do j=1,nt(2)
-        jm=j-1
-        if (jm.gt.nt(2)/2) jm=jm-nt(2)
-        ky=jm*2*pi/l(2)
-        do i=1,nt(1)/2+1
-          kx=(i-1)*2*pi/l(1)
-          r = sqrt( kz**2 + ky**2 + kx**2 )
-          !Find the bin number for this radius. Bins have width 1.0/pointsPerWvNum.
-          intR = int( r*l(3)/2/pi + 0.5) 
-          if(intR.le.kAlias) then
-            !Half of the kx domain is missing from FFT of real, so we must double
-            weight=2.0
-            if(i==1.or.i==nt(1)/2+1) weight=1.0
-            ESpec(intR) = ESpec(intR) + weight/nt(1)/nt(2)/nt(3)* & 
-                                      ( abs(uHat(i,j,k))**2 + &
-                                        abs(vHat(i,j,k))**2 + &
-                                        abs(wHat(i,j,k))**2 )
-            FSpec(intR) = FSpec(intR) + weight/nt(1)/nt(2)/nt(3)* & 
-                                      ( real( conjg(uHat(i,j,k)) * surfFXHat(i,j,k) )+ &
-                                        real( conjg(vHat(i,j,k)) * surfFYHat(i,j,k) )+ &
-                                        real( conjg(wHat(i,j,k)) * surfFZHat(i,j,k) ))
-          endif
-        enddo
-      enddo
-    enddo
     dropSize=0
     do k=1,nt(3)
       do j=1,nt(2)
@@ -347,7 +254,6 @@ do
         enddo
       enddo 
     enddo
-    write(*,*)'l350'
     MoI=0.0
     do k=1,nt(3)
       pos(3)=k
@@ -544,7 +450,6 @@ do
       if (error.ne.0) write(*,*) 'dropSize', dropSize, 'MoIEiVals', MoIEiVals
       deformation=sqrt(MoIEiVals(3)/MoIEiVals(1))
     endif
-    write(*,*)'l546'
     do ii=1,3
       !move drop back inside domain
       if(dropPos(1,ii).ge.nt(ii)+1) then
@@ -552,43 +457,20 @@ do
           dropPos(mom,ii)=dropPos(mom,ii)-nt(ii)**mom
         enddo
       endif
+      !integer coordinates of drop centre are used to make sphere and box
       pos(ii) = floor(dropPos(1,ii))
       !put in units of simulation domain size
       do mom=1,maxMom
         dropPos(mom,ii)=dropPos(mom,ii) * ( l(ii)/nt(ii) )**mom
       enddo
     enddo
-    write(*,*)'l561'
-    call velGradBlob(drop,vel,dVeldx)
-    call saveStrain(outDir,'Drop',time,dVeldx)
-    write(*,*)'l554'
+    !call velGradBlob(drop,vel,dVeldx)
+    !call saveStrain(outDir,'Drop',time,dVeldx)
     call velGradBox(pos,vel,dVeldx)
     call saveStrain(outDir,'Box',time,dVeldx)
-    write(*,*)'l565'
-    do k=rad+1, nzl-rad, rad
-      do j=rad+1, nyl-rad, rad
-        do i=rad+1, nxl-rad, rad
-          ballAv=0.0
-          nMaskInBall=0
-          nFldInBall=0
-          do kk=k-rad,k+rad
-            if ( ((k-kk)**2) .gt. rad**2) cycle
-            do jj=j-rad,j+rad
-              if ( ((k-kk)**2 + (j-jj)**2) .gt. rad**2) cycle
-              do ii=i-rad,i+rad
-                if ( ((k-kk)**2 + (j-jj)**2 + (i-ii)**2) .gt. rad**2) cycle
-                if(mask%f(ii,jj,kk).gt.0.5) then
-                  nMaskInBall = nMaskInBall + 1
-                  !ignore field inside particles
-                  if(excludeMask) cycle
-                endif
-                nFldInBall = nFldInBall + 1
-                ballAv = ballAv * (1.0-1.0/nFldInBall) + fld%f(ii,jj,kk)/nFldInBall
-              enddo
-            enddo
-          enddo
+    !compute the strain in a sphere with same diameter as drop
+    intR = (nt(1)/6.)**2
     do k=1,nt(3)
-      write(*,*)'l569k',k
       kp = abs(pos(3) - k)
       if (kp.gt.nt(3)/2) kp = kp - nt(3) 
       do j=1,nt(2)
@@ -597,17 +479,121 @@ do
         do i=1,nt(1)
           ip = abs(pos(1) - i)
           if (ip.gt.nt(1)/2) ip = ip - nt(1) 
-          if ( (nt(1)/6.)**2 .lt. ip**2+jp**2+kp**2 ) then
-            drop = 1
+          if ( intR .lt. ip**2+jp**2+kp**2 ) then
+            drop(i,j,k) = 1
           else
-            drop = 0
+            drop(i,j,k) = 0
           endif
         enddo
       enddo
     enddo
-    write(*,*)'l581'
     call velGradBlob(drop,vel,dVeldx)
     call saveStrain(outDir,'Sphere',time,dVeldx)
+    call fftwf_execute_dft_r2c(plan, phase, cHat)
+    do k=1,nt(3)
+      km=k-1
+      if (km.gt.nt(3)/2) km=km-nt(3)
+      wavNum(3)=km*2*pi/l(3)
+      do j=1,nt(2)
+        jm=j-1
+        if (jm.gt.nt(2)/2) jm=jm-nt(2)
+        wavNum(2)=jm*2*pi/l(2)
+        do i=1,nt(1)/2+1
+          wavNum(1)=(i-1)*2*pi/l(1)
+          cHat(i,j,k) = - (wavNum(3)**2 + wavNum(2)**2 + wavNum(1)**2) * cHat(i,j,k) /nt(1)/nt(2)/nt(3)
+        enddo
+      enddo
+    enddo
+    call fftwf_execute_dft_c2r(plan_inverse, cHat, dxxPhase)
+    chemPot = 1/Cn * (phase*phase - 1)*phase - Cn*dxxPhase
+    call fftwf_execute_dft_r2c(plan, chemPot, chemPotHat)
+    dxChemPotHat = cmplx(0.0,0.0)
+    dyChemPotHat = cmplx(0.0,0.0)
+    dzChemPotHat = cmplx(0.0,0.0)
+    do k=1,nt(3)
+      km=k-1
+      if (km.gt.nt(3)/2) km=km-nt(3)
+      if (abs(km).gt.kAlias) cycle
+      wavNum(3)=km*2*pi/l(3)
+      do j=1,nt(2)
+        jm=j-1
+        if (jm.gt.nt(2)/2) jm=jm-nt(2)
+        if (abs(jm).gt.kAlias) cycle
+        wavNum(2)=jm*2*pi/l(2)
+        do i=1,nt(1)/2+1
+          if (i-1.gt.kAlias) cycle
+          wavNum(1)=(i-1)*2*pi/l(1)
+          dxChemPotHat(i,j,k) = cmplx(0.0,1.0) * wavNum(1) * chemPotHat(i,j,k) /nt(1)/nt(2)/nt(3)
+          dyChemPotHat(i,j,k) = cmplx(0.0,1.0) * wavNum(2) * chemPotHat(i,j,k) /nt(1)/nt(2)/nt(3)
+          dzChemPotHat(i,j,k) = cmplx(0.0,1.0) * wavNum(3) * chemPotHat(i,j,k) /nt(1)/nt(2)/nt(3)
+        enddo
+      enddo
+    enddo
+    call fftwf_execute_dft_c2r(plan_inverse, dxChemPotHat, dxChemPot)
+    call fftwf_execute_dft_c2r(plan_inverse, dyChemPotHat, dyChemPot)
+    call fftwf_execute_dft_c2r(plan_inverse, dzChemPotHat, dzChemPot)
+    do k=1,nt(3)
+      do j=1,nt(2)
+        do i=1,nt(1)
+          surfFX(i,j,k) = phase(i,j,k) * dxChemPot(i,j,k)
+          surfFY(i,j,k) = phase(i,j,k) * dyChemPot(i,j,k)
+          surfFZ(i,j,k) = phase(i,j,k) * dzChemPot(i,j,k)
+        enddo
+      enddo
+    enddo
+    !do k=1,250
+    !  write(vortU,'(256ES16.7E3)') u(:,k,100)
+    !enddo
+    surPow = sum(surfFX*u + surfFY*v + surfFZ*w)
+    call fftwf_execute_dft_r2c(plan, surfFX, surfFXHat)
+    call fftwf_execute_dft_r2c(plan, surfFY, surfFYHat)
+    call fftwf_execute_dft_r2c(plan, surfFZ, surfFZHat)
+    call fftwf_execute_dft_r2c(plan, u, uHat)
+    call fftwf_execute_dft_r2c(plan, v, vHat)
+    call fftwf_execute_dft_r2c(plan, w, wHat)
+    ESpec=0.0
+    FSpec=0.0
+    dVeldx=0.0
+    do k=1,nt(3)
+      km=k-1
+      if (km.gt.nt(3)/2) km=km-nt(3)
+      wavNum(3)=km*2*pi/l(3)
+      do j=1,nt(2)
+        jm=j-1
+        if (jm.gt.nt(2)/2) jm=jm-nt(2)
+        wavNum(2)=jm*2*pi/l(2)
+        do i=1,nt(1)/2+1
+          wavNum(1)=(i-1)*2*pi/l(1)
+          r = sqrt( wavNum(3)**2 + wavNum(2)**2 + wavNum(1)**2 )
+          !Find the bin number for this radius. Bins have width 1.0/pointsPerWvNum.
+          intR = int( r*l(3)/2/pi + 0.5) 
+          if(intR.le.kAlias) then
+            !Half of the kx domain is missing from FFT of real, so we must double
+            weight = 2.0/nt(1)/nt(2)/nt(3)
+            if(i==1.or.i==nt(1)/2+1) weight = 1.0/nt(1)/nt(2)/nt(3)
+            ESpec(intR) = ESpec(intR) + weight* & 
+                                      ( abs(uHat(i,j,k))**2 + &
+                                        abs(vHat(i,j,k))**2 + &
+                                        abs(wHat(i,j,k))**2 )
+            FSpec(intR) = FSpec(intR) + weight/nt(1)/nt(2)/nt(3)* & 
+                                      ( real( conjg(uHat(i,j,k)) * surfFXHat(i,j,k) )+ &
+                                        real( conjg(vHat(i,j,k)) * surfFYHat(i,j,k) )+ &
+                                        real( conjg(wHat(i,j,k)) * surfFZHat(i,j,k) ))
+          endif
+          !if(r.lt.2*pi*l(3)/6.) then
+            dVeldx(1,1) = dVeldx(1,1) + weight * real( uHat(i,j,k) * exp( cmplx(0.0, sum( wavNum(:)*dropPos(1,:)))))
+            dVeldx(1,2) = dVeldx(1,2) + weight * real( vHat(i,j,k) * exp( cmplx(0.0, sum( wavNum(:)*dropPos(1,:)))))
+            dVeldx(1,3) = dVeldx(1,3) + weight * real( wHat(i,j,k) * exp( cmplx(0.0, sum( wavNum(:)*dropPos(1,:)))))
+          !endif
+        enddo
+      enddo
+    enddo
+    write(*,*) 'dropVel',dropVel
+    write(*,*) 'dropU',u(pos(1),pos(2),pos(3))
+    write(*,*) 'dropV',v(pos(1),pos(2),pos(3))
+    write(*,*) 'dropW',w(pos(1),pos(2),pos(3))
+    write(*,*) 'dVeldx',dVeldx
+    !call saveStrain(outDir,'Modes',time,dVeldx)
     write(statU,'(ES16.7E3,i16,4ES16.7E3,6i16,3ES16.7E3)') time,dropSize,dropArea,deformation,kurMean,kurStdDev,&
           last0(:),last1(:),kurInv,kurInvSq,surPow
     flush(statU)
