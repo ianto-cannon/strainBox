@@ -165,4 +165,29 @@ open(newunit=vortU,file=trim(outDir)//'/vortic'//trim(domain)//'.txt',access='ap
 close(vortU)
 end subroutine saveStrain
 
+subroutine makeSphere(pos,sphere)
+!compute the strain in a sphere with same diameter as drop
+integer, intent(in) :: pos(3)
+integer, intent(out) :: sphere(nt(1),nt(2),nt(3))
+integer :: intR,i,j,k,ip,jp,kp
+intR = nint((nt(1)/6.)**2)
+do k=1,nt(3)
+  kp = abs(pos(3) - k)
+  if (kp.gt.nt(3)/2) kp = kp - nt(3) 
+  do j=1,nt(2)
+    jp = abs(pos(2) - j)
+    if (jp.gt.nt(2)/2) jp = jp - nt(2) 
+    do i=1,nt(1)
+      ip = abs(pos(1) - i)
+      if (ip.gt.nt(1)/2) ip = ip - nt(1) 
+      if ( intR .lt. ip**2+jp**2+kp**2 ) then
+        sphere(i,j,k) = 1
+      else
+        sphere(i,j,k) = 0
+      endif
+    enddo
+  enddo
+enddo
+end subroutine makeSphere
+
 end module modVelGrad

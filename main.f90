@@ -3,7 +3,7 @@ use hdf5
 !use, intrinsic :: ISO_FORTRAN_ENV
 use, intrinsic :: iso_c_binding
 use mpi
-use modVelGrad, only : velGradBox, velGradBlob, saveStrain, nt, l, dx
+use modVelGrad, only : velGradBox, velGradBlob, saveStrain, makeSphere, nt, l, dx
 implicit none
 include 'fftw3.f03'
 type ragged_array
@@ -27,8 +27,8 @@ integer :: i,j,k,ip,jp,kp,iq,jq,kq,iShifted,mom,ii,jj,im,jm,km
 integer :: cols,paintIt,faceOnCorner,genus,onInt,error,intR,ios,rank,ntask
 integer :: statU,posiU,veloU,MoInU,topoU,dirU,listU,specU,forcU
 integer :: runNum
-real, dimension(maxMom,3) :: dropPos, dropVel
-real, dimension(3) :: MoIEiVals, wavNum
+real, dimension(maxMom,3) :: dropPos,dropVel
+real, dimension(3) :: MoIEiVals,wavNum,farPos
 real, dimension(3,3) :: MoI, dVeldx
 real :: diag,deformation,dropArea,dA,Cn,r,time,work(8),We,res,weight
 real :: maxNor,kurMean,kurStdDev,kurInv,kurInvSq,invSize,surPow
@@ -65,11 +65,11 @@ do
   if (ios /= 0) exit
   str = trim( runName(11:) )
   read( str , *) runNum
-  !if ( modulo( runNum, ntask ) .ne. rank) cycle
-  if ( runNum .ne. 0) cycle
+  if ( modulo( runNum, ntask ) .ne. rank) cycle
+  !if ( runNum .ne. 0) cycle
   inDir='/home/alberto.velamartin/drop_time/'//trim(weName)//trim(runName)
-  !outDir='../'//trim(weName)//trim(runName)
-  outDir='output/'
+  outDir='../'//trim(weName)//trim(runName)
+  !outDir='output/'
   call system('mkdir '//trim(outDir))
   call system('ls '//trim(inDir)//'/field*.h5 > '//trim(outDir)//'/file_list.txt')
   !call system('ls '//trim(inDir)//'/field.008.h5 > '//trim(outDir)//'/file_list.txt')
@@ -87,7 +87,7 @@ do
   do
     read(listU, '(A)', iostat=ios) filename
     if (ios /= 0) exit
-    write(*,*) trim(filename)
+    if (rank.eq.0) write(*,*) trim(filename)
     flush(6)
     ! Open the file (read-only)
     call h5open_f(error)
@@ -148,7 +148,7 @@ do
     vel(1,:,:,:)=u
     vel(2,:,:,:)=v
     vel(3,:,:,:)=w
-    write(*,*)'rmsVel',sqrt(sum(vel**2)/nt(3)**3/3)
+    !write(*,*)'rmsVel',sqrt(sum(vel**2)/nt(3)**3/3)
     dropSize=0
     do k=1,nt(3)
       do j=1,nt(2)
@@ -464,32 +464,22 @@ do
       do mom=1,maxMom
         dropPos(mom,ii)=dropPos(mom,ii) * dx(ii)**mom
       enddo
+      farPos(ii) = dropPos(1,ii) + 0.5*l(ii)
+      if (farPos(ii).gt.l(ii)) farPos(ii) = farPos(ii) - l(ii)
+      !iFarPos(ii) = 
     enddo
     !call velGradBlob(drop,vel,dVeldx)
     !call saveStrain(outDir,'Drop',time,dVeldx)
     call velGradBox(pos,vel,dVeldx)
     call saveStrain(outDir,'Box',time,dVeldx)
-    !compute the strain in a sphere with same diameter as drop
-    intR = nint((nt(1)/6.)**2)
-    do k=1,nt(3)
-      kp = abs(pos(3) - k)
-      if (kp.gt.nt(3)/2) kp = kp - nt(3) 
-      do j=1,nt(2)
-        jp = abs(pos(2) - j)
-        if (jp.gt.nt(2)/2) jp = jp - nt(2) 
-        do i=1,nt(1)
-          ip = abs(pos(1) - i)
-          if (ip.gt.nt(1)/2) ip = ip - nt(1) 
-          if ( intR .lt. ip**2+jp**2+kp**2 ) then
-            drop(i,j,k) = 1
-          else
-            drop(i,j,k) = 0
-          endif
-        enddo
-      enddo
-    enddo
+    call velGradBox(nint(farPos(:)/dx(:)),vel,dVeldx)
+    call saveStrain(outDir,'FarBox',time,dVeldx)
+    call makeSphere(pos,drop)
     call velGradBlob(drop,vel,dVeldx)
     call saveStrain(outDir,'Sphere',time,dVeldx)
+    call makeSphere(nint(farPos(:)/dx(:)),drop)
+    call velGradBlob(drop,vel,dVeldx)
+    call saveStrain(outDir,'FarSphere',time,dVeldx)
     call fftwf_execute_dft_r2c(plan, phase, cHat)
     do k=1,nt(3)
       km=k-1
@@ -582,17 +572,12 @@ do
                                         real( conjg(wHat(i,j,k)) * surfFZHat(i,j,k) ))
           endif
           if(r.lt.2*pi*6./l(3)) then
-            !ikx(1) = (i-1)*(dropPos(1,1)-1) + (j-1)*(dropPos(1,2)-1) + (i-1)*(dropPos(1,3)-1) )
-            !ikx = cmplx(0.0, 2.0) * pi * ikx / l
             eikdotx = exp( cmplx(0.0, sum( wavNum(:)*dropPos(1,:))))
             do ii = 1,3
               dVeldx(1,ii) = dVeldx(1,ii) + weight * real( cmplx(0.0, wavNum(ii) ) * uHat(i,j,k) * eikdotx)
               dVeldx(2,ii) = dVeldx(2,ii) + weight * real( cmplx(0.0, wavNum(ii) ) * vHat(i,j,k) * eikdotx)
               dVeldx(3,ii) = dVeldx(3,ii) + weight * real( cmplx(0.0, wavNum(ii) ) * wHat(i,j,k) * eikdotx)
             enddo
-            !dVeldx(1,:) = dVeldx(1,:) + weight * real( uHat(i,j,k) * exp(ikx) )
-            !dVeldx(2,:) = dVeldx(2,:) + weight * real( ikx* vHat(i,j,k) * exp(ikx) )
-            !dVeldx(3,:) = dVeldx(3,:) + weight * real( ikx * wHat(i,j,k) * exp(ikx) )
           else
             uHat(i,j,k)=0.0
             vHat(i,j,k)=0.0
@@ -610,6 +595,34 @@ do
     call fftwf_execute_dft_c2r(plan_inverse, wHat, vel(3,:,:,:))
     call velGradBox(pos,vel,dVeldx)
     call saveStrain(outDir,'LowPassBox',time,dVeldx)
+    dVeldx=0.0
+    do k=1,nt(3)
+      km=k-1
+      if (km.gt.nt(3)/2) km=km-nt(3)
+      wavNum(3)=km*2*pi/l(3)
+      do j=1,nt(2)
+        jm=j-1
+        if (jm.gt.nt(2)/2) jm=jm-nt(2)
+        wavNum(2)=jm*2*pi/l(2)
+        do i=1,nt(1)/2+1
+          wavNum(1)=(i-1)*2*pi/l(1)
+          weight = 2.0/nt(1)/nt(2)/nt(3)
+          if(i==1.or.i==nt(1)/2+1) weight = 1.0/nt(1)/nt(2)/nt(3)
+          r = sqrt( wavNum(3)**2 + wavNum(2)**2 + wavNum(1)**2 )
+          !Find the bin number for this radius. Bins have width 1.0/pointsPerWvNum.
+          intR = int( r*l(3)/2/pi + 0.5) 
+          if(r.lt.2*pi*6./l(3)) then
+            eikdotx = exp( cmplx(0.0, sum( wavNum(:)*farPos(:))))
+            do ii = 1,3
+              dVeldx(1,ii) = dVeldx(1,ii) + weight * real( cmplx(0.0, wavNum(ii) ) * uHat(i,j,k) * eikdotx)
+              dVeldx(2,ii) = dVeldx(2,ii) + weight * real( cmplx(0.0, wavNum(ii) ) * vHat(i,j,k) * eikdotx)
+              dVeldx(3,ii) = dVeldx(3,ii) + weight * real( cmplx(0.0, wavNum(ii) ) * wHat(i,j,k) * eikdotx)
+            enddo
+          endif
+        enddo
+      enddo
+    enddo
+    call saveStrain(outDir,'FarModes',time,dVeldx)
     write(statU,'(ES16.7E3,i16,4ES16.7E3,6i16,3ES16.7E3)') time,dropSize,dropArea,deformation,kurMean,kurStdDev,&
           last0(:),last1(:),kurInv,kurInvSq,surPow
     flush(statU)
@@ -638,7 +651,7 @@ do
   close(specU,status='keep')
   close(forcU,status='keep')
   close(listU)
-  call system('rm file_list.txt')
+  call system('rm '//trim(outDir)//'file_list.txt')
   call system('./transpose.awk.sh output/ESpec.txt > output/ESpecTransp.txt')
   call system('./transpose.awk.sh output/FSpec.txt > output/FSpecTransp.txt')
 enddo
