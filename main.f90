@@ -466,7 +466,6 @@ do
       enddo
       farPos(ii) = dropPos(1,ii) + 0.5*l(ii)
       if (farPos(ii).gt.l(ii)) farPos(ii) = farPos(ii) - l(ii)
-      !iFarPos(ii) = 
     enddo
     !call velGradBlob(drop,vel,dVeldx)
     !call saveStrain(outDir,'Drop',time,dVeldx)
@@ -606,8 +605,8 @@ do
         wavNum(2)=jm*2*pi/l(2)
         do i=1,nt(1)/2+1
           wavNum(1)=(i-1)*2*pi/l(1)
-          weight = 2.0/nt(1)/nt(2)/nt(3)
-          if(i==1.or.i==nt(1)/2+1) weight = 1.0/nt(1)/nt(2)/nt(3)
+          weight = 2.0!/nt(1)/nt(2)/nt(3)
+          if(i==1.or.i==nt(1)/2+1) weight = 1.0!/nt(1)/nt(2)/nt(3)
           r = sqrt( wavNum(3)**2 + wavNum(2)**2 + wavNum(1)**2 )
           !Find the bin number for this radius. Bins have width 1.0/pointsPerWvNum.
           intR = int( r*l(3)/2/pi + 0.5) 
@@ -632,9 +631,7 @@ do
     flush(posiU)
     write(veloU,str) time, (dropVel(mom,:),mom=1,maxMom)
     flush(veloU)
-    !write(MoInU,'(13ES16.7E3)') time, MoIEiVals, MoI
-    write(MoInU,'(10ES16.7E3)') time, dropVel(1,:),&
-        u(pos(1),pos(2),pos(3)),v(pos(1),pos(2),pos(3)),w(pos(1),pos(2),pos(3)),dVeldx(1,:)
+    write(MoInU,'(13ES16.7E3)') time, MoIEiVals, MoI
     flush(MoInU)
     write(topoU,'(ES16.7E3, 4i16)') time,vertices,edges,faces,genus
     flush(topoU)
@@ -651,9 +648,9 @@ do
   close(specU,status='keep')
   close(forcU,status='keep')
   close(listU)
-  call system('rm '//trim(outDir)//'file_list.txt')
-  call system('./transpose.awk.sh output/ESpec.txt > output/ESpecTransp.txt')
-  call system('./transpose.awk.sh output/FSpec.txt > output/FSpecTransp.txt')
+  call system('rm '//trim(outDir)//'/file_list.txt')
+  call system('./transpose.awk.sh '//trim(outDir)//'/ESpec.txt > '//trim(outDir)//'/ESpecTransp.txt')
+  call system('./transpose.awk.sh '//trim(outDir)//'/FSpec.txt > '//trim(outDir)//'/FSpecTransp.txt')
 enddo
 do ii=1,3
   deallocate(hist(ii)%v)
@@ -661,6 +658,8 @@ enddo
 call fftw_destroy_plan(plan)
 call fftw_destroy_plan(plan_inverse)
 call fftw_cleanup()
+write(*,*) 'rank',rank,'done'
+call mpi_barrier(mpi_comm_world,error)
 if (rank.eq.0) call system('rm ../'//trim(weName)//'dir_list.txt')
 if (rank.eq.0) write(6,*) 'This is the end'
 call mpi_finalize(error)
