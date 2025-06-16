@@ -152,8 +152,8 @@ def strainVsTime():
     avgStrainSq=np.zeros((timelen,4))
     count=0
     for i in range(200):
-      #fname = f'/Users/iantocannon/Desktop/fsm/drops/boxStrain/we_05/run_break_{i:03}/strainModes.txt'
-      fname = f'/Users/iantocannon/Desktop/fsm/drops/boxStrain/we_05/run_break_{i:03}/'+matrix+'.txt'
+      #fname = f'/Users/iantocannon/Desktop/fsm/drops/boxStrain/we_05/run_break_{i:03}/'+matrix+'.txt'
+      fname = f'/home/ianto.cannon/drops/boxStrain/we_05/run_break_{i:03}/'+matrix+'.txt'
       try:
         with open(fname, encoding = 'utf-8') as f:
           print('loadin ',fname)
@@ -174,6 +174,7 @@ def strainVsTime():
     labels = [r'$s_1$', r'$s_2$', r'$s_3$']
     colors = ['C0', 'C1', 'C2']
     for i in range(1, 4):
+        ax.plot(strain[-timelen:,i], color=colors[i-1], alpha=.3)
         ax.plot(avgStrain[:, i], label=labels[i-1], color=colors[i-1])
         ax.fill_between(
             np.arange(avgStrain.shape[0]),
@@ -183,7 +184,7 @@ def strainVsTime():
             alpha=0.3
         ) 
     ax.legend()
-    fname = matrix+'VsTime100.pdf'
+    fname = 'plots/' + matrix+'VsTimeDash.pdf'
     print('savin ',fname)
     fig.savefig(fname, bbox_inches='tight', transparent=True, format='pdf', dpi=600)
   return

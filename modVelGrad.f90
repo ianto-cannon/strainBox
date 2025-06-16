@@ -8,7 +8,7 @@ subroutine velGradBox(pos,vel,dVeldxBox)
 integer, intent(in) :: pos(3)
 real, intent(in), dimension(3,nt(1),nt(2),nt(3)) :: vel
 real, intent(out), dimension(3,3) :: dVeldxBox
-integer, parameter :: boxWid=nint(nt(3)/6.)
+integer, parameter :: boxWid=nint(nt(3)/5.)
 integer :: i,j,k,jj,ip,jp,kp,im,jm,km,nVels
 real :: dVeldx(3)
 dVeldxBox=0.0
@@ -170,7 +170,7 @@ subroutine makeSphere(pos,sphere)
 integer, intent(in) :: pos(3)
 integer, intent(out) :: sphere(nt(1),nt(2),nt(3))
 integer :: intR,i,j,k,ip,jp,kp
-intR = nint((nt(1)/6.)**2)
+intR = nint((nt(3)/5.)**2)
 do k=1,nt(3)
   kp = abs(pos(3) - k)
   if (kp.gt.nt(3)/2) kp = kp - nt(3) 
@@ -180,7 +180,7 @@ do k=1,nt(3)
     do i=1,nt(1)
       ip = abs(pos(1) - i)
       if (ip.gt.nt(1)/2) ip = ip - nt(1) 
-      if ( intR .lt. ip**2+jp**2+kp**2 ) then
+      if ( ip**2+jp**2+kp**2 .lt. intR ) then
         sphere(i,j,k) = 1
       else
         sphere(i,j,k) = 0

@@ -66,10 +66,10 @@ do
   str = trim( runName(11:) )
   read( str , *) runNum
   if ( modulo( runNum, ntask ) .ne. rank) cycle
-  !if ( runNum .ne. 0) cycle
+  if ( runNum .ne. 0) cycle
   inDir='/home/alberto.velamartin/drop_time/'//trim(weName)//trim(runName)
-  outDir='../'//trim(weName)//trim(runName)
-  !outDir='output/'
+  !outDir='../'//trim(weName)//trim(runName)
+  outDir='output/'
   call system('mkdir '//trim(outDir))
   call system('ls '//trim(inDir)//'/field*.h5 > '//trim(outDir)//'/file_list.txt')
   !call system('ls '//trim(inDir)//'/field.008.h5 > '//trim(outDir)//'/file_list.txt')
@@ -474,6 +474,7 @@ do
     call velGradBox(nint(farPos(:)/dx(:)),vel,dVeldx)
     call saveStrain(outDir,'FarBox',time,dVeldx)
     call makeSphere(pos,drop)
+    write(*,*) 'sphere',sum(drop)/(1.*nt(1))**3
     call velGradBlob(drop,vel,dVeldx)
     call saveStrain(outDir,'Sphere',time,dVeldx)
     call makeSphere(nint(farPos(:)/dx(:)),drop)
@@ -570,7 +571,7 @@ do
                                         real( conjg(vHat(i,j,k)) * surfFYHat(i,j,k) )+ &
                                         real( conjg(wHat(i,j,k)) * surfFZHat(i,j,k) ))
           endif
-          if(r.lt.2*pi*6./l(3)) then
+          if(r.lt.2*pi*5./l(3)) then
             eikdotx = exp( cmplx(0.0, sum( wavNum(:)*dropPos(1,:))))
             do ii = 1,3
               dVeldx(1,ii) = dVeldx(1,ii) + weight * real( cmplx(0.0, wavNum(ii) ) * uHat(i,j,k) * eikdotx)
@@ -610,7 +611,7 @@ do
           r = sqrt( wavNum(3)**2 + wavNum(2)**2 + wavNum(1)**2 )
           !Find the bin number for this radius. Bins have width 1.0/pointsPerWvNum.
           intR = int( r*l(3)/2/pi + 0.5) 
-          if(r.lt.2*pi*6./l(3)) then
+          if(r.lt.2*pi*5./l(3)) then
             eikdotx = exp( cmplx(0.0, sum( wavNum(:)*farPos(:))))
             do ii = 1,3
               dVeldx(1,ii) = dVeldx(1,ii) + weight * real( cmplx(0.0, wavNum(ii) ) * uHat(i,j,k) * eikdotx)
