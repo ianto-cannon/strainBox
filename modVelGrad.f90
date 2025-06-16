@@ -4,11 +4,11 @@ integer, dimension(3), parameter :: nt = (/256,256,256/)
 real, dimension(3), parameter :: dx = (/1.0,1.0,1.0/), l = nt*dx
 contains
 
-subroutine velGradBox(pos,vel,dVeldxBox)
+subroutine velGradBox(pos,rad,vel,dVeldxBox)
 integer, intent(in) :: pos(3)
 real, intent(in), dimension(3,nt(1),nt(2),nt(3)) :: vel
 real, intent(out), dimension(3,3) :: dVeldxBox
-integer, parameter :: boxWid=nint(nt(3)/5.)
+integer, parameter :: boxWid=nint(nt(3)*rad)
 integer :: i,j,k,jj,ip,jp,kp,im,jm,km,nVels
 real :: dVeldx(3)
 dVeldxBox=0.0
@@ -165,12 +165,13 @@ open(newunit=vortU,file=trim(outDir)//'/vortic'//trim(domain)//'.txt',access='ap
 close(vortU)
 end subroutine saveStrain
 
-subroutine makeSphere(pos,sphere)
+subroutine makeSphere(pos,rad,sphere)
 !compute the strain in a sphere with same diameter as drop
 integer, intent(in) :: pos(3)
+real, intent(in) :: rad
 integer, intent(out) :: sphere(nt(1),nt(2),nt(3))
 integer :: intR,i,j,k,ip,jp,kp
-intR = nint((nt(3)/5.)**2)
+intR = nint((nt(3)*rad)**2)
 do k=1,nt(3)
   kp = abs(pos(3) - k)
   if (kp.gt.nt(3)/2) kp = kp - nt(3) 

@@ -474,7 +474,7 @@ do
     call velGradBox(nint(farPos(:)/dx(:)),vel,dVeldx)
     call saveStrain(outDir,'FarBox',time,dVeldx)
     call makeSphere(pos,drop)
-    write(*,*) 'sphere',sum(drop)/(1.*nt(1))**3
+    !write(*,*) 'sphere',sum(drop)/(1.*nt(1))**3
     call velGradBlob(drop,vel,dVeldx)
     call saveStrain(outDir,'Sphere',time,dVeldx)
     call makeSphere(nint(farPos(:)/dx(:)),drop)
@@ -578,23 +578,23 @@ do
               dVeldx(2,ii) = dVeldx(2,ii) + weight * real( cmplx(0.0, wavNum(ii) ) * vHat(i,j,k) * eikdotx)
               dVeldx(3,ii) = dVeldx(3,ii) + weight * real( cmplx(0.0, wavNum(ii) ) * wHat(i,j,k) * eikdotx)
             enddo
-          else
-            uHat(i,j,k)=0.0
-            vHat(i,j,k)=0.0
-            wHat(i,j,k)=0.0
+          !else
+          !  uHat(i,j,k)=0.0
+          !  vHat(i,j,k)=0.0
+          !  wHat(i,j,k)=0.0
           endif
         enddo
       enddo
     enddo
     call saveStrain(outDir,'Modes',time,dVeldx)
-    uHat=uHat/nt(1)/nt(2)/nt(3)
-    vHat=vHat/nt(1)/nt(2)/nt(3)
-    wHat=wHat/nt(1)/nt(2)/nt(3)
-    call fftwf_execute_dft_c2r(plan_inverse, uHat, vel(1,:,:,:))
-    call fftwf_execute_dft_c2r(plan_inverse, vHat, vel(2,:,:,:))
-    call fftwf_execute_dft_c2r(plan_inverse, wHat, vel(3,:,:,:))
-    call velGradBox(pos,vel,dVeldx)
-    call saveStrain(outDir,'LowPassBox',time,dVeldx)
+    !uHat=uHat/nt(1)/nt(2)/nt(3)
+    !vHat=vHat/nt(1)/nt(2)/nt(3)
+    !wHat=wHat/nt(1)/nt(2)/nt(3)
+    !call fftwf_execute_dft_c2r(plan_inverse, uHat, vel(1,:,:,:))
+    !call fftwf_execute_dft_c2r(plan_inverse, vHat, vel(2,:,:,:))
+    !call fftwf_execute_dft_c2r(plan_inverse, wHat, vel(3,:,:,:))
+    !call velGradBox(pos,vel,dVeldx)
+    !call saveStrain(outDir,'LowPassBox',time,dVeldx)
     dVeldx=0.0
     do k=1,nt(3)
       km=k-1
@@ -606,8 +606,8 @@ do
         wavNum(2)=jm*2*pi/l(2)
         do i=1,nt(1)/2+1
           wavNum(1)=(i-1)*2*pi/l(1)
-          weight = 2.0!/nt(1)/nt(2)/nt(3)
-          if(i==1.or.i==nt(1)/2+1) weight = 1.0!/nt(1)/nt(2)/nt(3)
+          weight = 2.0/nt(1)/nt(2)/nt(3)
+          if(i==1.or.i==nt(1)/2+1) weight = 1.0/nt(1)/nt(2)/nt(3)
           r = sqrt( wavNum(3)**2 + wavNum(2)**2 + wavNum(1)**2 )
           !Find the bin number for this radius. Bins have width 1.0/pointsPerWvNum.
           intR = int( r*l(3)/2/pi + 0.5) 
