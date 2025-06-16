@@ -2,15 +2,18 @@ module modVelGrad
 implicit none
 integer, dimension(3), parameter :: nt = (/256,256,256/)
 real, dimension(3), parameter :: dx = (/1.0,1.0,1.0/), l = nt*dx
+real, parameter :: pi=3.14159265358979
 contains
 
-subroutine velGradBox(pos,rad,vel,dVeldxBox)
-integer, intent(in) :: pos(3)
+subroutine velGradBox(realPos,rad,vel,dVeldxBox)
+real, intent(in) :: realPos(3), rad
 real, intent(in), dimension(3,nt(1),nt(2),nt(3)) :: vel
 real, intent(out), dimension(3,3) :: dVeldxBox
-integer, parameter :: boxWid=nint(nt(3)*rad)
+integer :: boxWid, pos(3)
 integer :: i,j,k,jj,ip,jp,kp,im,jm,km,nVels
 real :: dVeldx(3)
+boxWid=nint(rad/dx(3))
+pos=nint(realPos/dx)
 dVeldxBox=0.0
 jj=1
 ip = pos(1) + boxWid
@@ -58,6 +61,41 @@ do j = pos(2)-boxWid, pos(2)+boxWid
   enddo
 enddo
 end subroutine velGradBox
+
+subroutine velGradModes(pos,rad,uHat,vHat,wHat,dVeldx)
+real, intent(in) :: pos(3), rad
+complex, intent(in), dimension(nt(1)/2+1,nt(2),nt(3)) :: uHat,vHat,wHat
+real, intent(out), dimension(3,3) :: dVeldx
+integer :: i,j,k,ii,jm,km
+real :: wavNum(3), wav, weight
+complex :: eikdotx
+dVeldx=0.0
+do k=1,nt(3)
+  km=k-1
+  if (km.gt.nt(3)/2) km=km-nt(3)
+  wavNum(3)=km*2*pi/l(3)
+  do j=1,nt(2)
+    jm=j-1
+    if (jm.gt.nt(2)/2) jm=jm-nt(2)
+    wavNum(2)=jm*2*pi/l(2)
+    do i=1,nt(1)/2+1
+      wavNum(1)=(i-1)*2*pi/l(1)
+      weight = 2.0/nt(1)/nt(2)/nt(3)
+      if(i==1.or.i==nt(1)/2+1) weight = 1.0/nt(1)/nt(2)/nt(3)
+      wav = sqrt( wavNum(3)**2 + wavNum(2)**2 + wavNum(1)**2 )
+      !Find the bin number for this radius. Bins have width 1.0/pointsPerWvNum.
+      if(wav.lt.2*pi/rad) then
+        eikdotx = exp( cmplx(0.0, sum( wavNum(:)*pos(:))))
+        do ii = 1,3
+          dVeldx(1,ii) = dVeldx(1,ii) + weight * real( cmplx(0.0, wavNum(ii) ) * uHat(i,j,k) * eikdotx)
+          dVeldx(2,ii) = dVeldx(2,ii) + weight * real( cmplx(0.0, wavNum(ii) ) * vHat(i,j,k) * eikdotx)
+          dVeldx(3,ii) = dVeldx(3,ii) + weight * real( cmplx(0.0, wavNum(ii) ) * wHat(i,j,k) * eikdotx)
+        enddo
+      endif
+    enddo
+  enddo
+enddo
+end subroutine velGradModes
 
 subroutine velGradBlob(blob,vel,dVeldxTot)
 integer, intent(in), dimension(nt(1),nt(2),nt(3)) :: blob
@@ -165,13 +203,13 @@ open(newunit=vortU,file=trim(outDir)//'/vortic'//trim(domain)//'.txt',access='ap
 close(vortU)
 end subroutine saveStrain
 
-subroutine makeSphere(pos,rad,sphere)
+subroutine makeSphere(realPos,rad,sphere)
 !compute the strain in a sphere with same diameter as drop
-integer, intent(in) :: pos(3)
-real, intent(in) :: rad
+real, intent(in) :: realPos(3), rad
 integer, intent(out) :: sphere(nt(1),nt(2),nt(3))
-integer :: intR,i,j,k,ip,jp,kp
-intR = nint((nt(3)*rad)**2)
+integer :: intR,i,j,k,ip,jp,kp,pos(3)
+pos=nint(realPos/dx)
+intR = nint((rad/dx(3))**2)
 do k=1,nt(3)
   kp = abs(pos(3) - k)
   if (kp.gt.nt(3)/2) kp = kp - nt(3) 

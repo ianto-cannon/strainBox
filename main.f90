@@ -3,7 +3,7 @@ use hdf5
 !use, intrinsic :: ISO_FORTRAN_ENV
 use, intrinsic :: iso_c_binding
 use mpi
-use modVelGrad, only : velGradBox, velGradBlob, saveStrain, makeSphere, nt, l, dx
+use modVelGrad, only : velGradBox,velGradBlob,velGradModes,saveStrain,makeSphere,nt,l,dx,pi
 implicit none
 include 'fftw3.f03'
 type ragged_array
@@ -15,7 +15,6 @@ character(len=200) :: filename, runName, weName='we_05/', inDir, outDir
 real :: modnor
 integer,parameter :: maxMom=2
 integer,parameter :: kAlias=int((2.0/3.0)* (nt(3)/2))
-real, parameter :: pi=3.14159265358979
 real, dimension(nt(1),nt(2),nt(3)) :: kur,u,v,w,phase,dxxPhase
 real, dimension(nt(1),nt(2),nt(3)) :: chemPot,dxChemPot,dyChemPot,dzChemPot,surfFX,surfFY,surfFZ
 real, dimension(3,nt(1),nt(2),nt(3)) :: nor, vel
@@ -38,7 +37,6 @@ integer :: dropSize, faces, edges, vertices
 character(len=200) :: fileEnd, str
 integer(hid_t) :: file_id, dset_id
 integer(hsize_t) :: dims(3)=(/nt(1),nt(2),nt(3)/),  dims1d(1)=(/1/) 
-complex :: eikdotx
 complex, dimension(nt(1)/2+1,nt(2),nt(3)) :: cHat,chemPotHat,dxChemPotHat,dyChemPotHat,dzChemPotHat
 complex, dimension(nt(1)/2+1,nt(2),nt(3)) :: surfFXHat,surfFYHat,surfFZHat,uHat,vHat,wHat
 real, dimension(0:kAlias) :: FSpec,ESpec
@@ -66,10 +64,10 @@ do
   str = trim( runName(11:) )
   read( str , *) runNum
   if ( modulo( runNum, ntask ) .ne. rank) cycle
-  if ( runNum .ne. 0) cycle
+  !if ( runNum .ne. 0) cycle
   inDir='/home/alberto.velamartin/drop_time/'//trim(weName)//trim(runName)
-  !outDir='../'//trim(weName)//trim(runName)
-  outDir='output/'
+  outDir='../'//trim(weName)//trim(runName)
+  !outDir='output/'
   call system('mkdir '//trim(outDir))
   call system('ls '//trim(inDir)//'/field*.h5 > '//trim(outDir)//'/file_list.txt')
   !call system('ls '//trim(inDir)//'/field.008.h5 > '//trim(outDir)//'/file_list.txt')
@@ -467,19 +465,6 @@ do
       farPos(ii) = dropPos(1,ii) + 0.5*l(ii)
       if (farPos(ii).gt.l(ii)) farPos(ii) = farPos(ii) - l(ii)
     enddo
-    !call velGradBlob(drop,vel,dVeldx)
-    !call saveStrain(outDir,'Drop',time,dVeldx)
-    call velGradBox(pos,vel,dVeldx)
-    call saveStrain(outDir,'Box',time,dVeldx)
-    call velGradBox(nint(farPos(:)/dx(:)),vel,dVeldx)
-    call saveStrain(outDir,'FarBox',time,dVeldx)
-    call makeSphere(pos,drop)
-    !write(*,*) 'sphere',sum(drop)/(1.*nt(1))**3
-    call velGradBlob(drop,vel,dVeldx)
-    call saveStrain(outDir,'Sphere',time,dVeldx)
-    call makeSphere(nint(farPos(:)/dx(:)),drop)
-    call velGradBlob(drop,vel,dVeldx)
-    call saveStrain(outDir,'FarSphere',time,dVeldx)
     call fftwf_execute_dft_r2c(plan, phase, cHat)
     do k=1,nt(3)
       km=k-1
@@ -571,58 +556,30 @@ do
                                         real( conjg(vHat(i,j,k)) * surfFYHat(i,j,k) )+ &
                                         real( conjg(wHat(i,j,k)) * surfFZHat(i,j,k) ))
           endif
-          if(r.lt.2*pi*5./l(3)) then
-            eikdotx = exp( cmplx(0.0, sum( wavNum(:)*dropPos(1,:))))
-            do ii = 1,3
-              dVeldx(1,ii) = dVeldx(1,ii) + weight * real( cmplx(0.0, wavNum(ii) ) * uHat(i,j,k) * eikdotx)
-              dVeldx(2,ii) = dVeldx(2,ii) + weight * real( cmplx(0.0, wavNum(ii) ) * vHat(i,j,k) * eikdotx)
-              dVeldx(3,ii) = dVeldx(3,ii) + weight * real( cmplx(0.0, wavNum(ii) ) * wHat(i,j,k) * eikdotx)
-            enddo
-          !else
-          !  uHat(i,j,k)=0.0
-          !  vHat(i,j,k)=0.0
-          !  wHat(i,j,k)=0.0
-          endif
         enddo
       enddo
     enddo
-    call saveStrain(outDir,'Modes',time,dVeldx)
-    !uHat=uHat/nt(1)/nt(2)/nt(3)
-    !vHat=vHat/nt(1)/nt(2)/nt(3)
-    !wHat=wHat/nt(1)/nt(2)/nt(3)
-    !call fftwf_execute_dft_c2r(plan_inverse, uHat, vel(1,:,:,:))
-    !call fftwf_execute_dft_c2r(plan_inverse, vHat, vel(2,:,:,:))
-    !call fftwf_execute_dft_c2r(plan_inverse, wHat, vel(3,:,:,:))
-    !call velGradBox(pos,vel,dVeldx)
-    !call saveStrain(outDir,'LowPassBox',time,dVeldx)
-    dVeldx=0.0
-    do k=1,nt(3)
-      km=k-1
-      if (km.gt.nt(3)/2) km=km-nt(3)
-      wavNum(3)=km*2*pi/l(3)
-      do j=1,nt(2)
-        jm=j-1
-        if (jm.gt.nt(2)/2) jm=jm-nt(2)
-        wavNum(2)=jm*2*pi/l(2)
-        do i=1,nt(1)/2+1
-          wavNum(1)=(i-1)*2*pi/l(1)
-          weight = 2.0/nt(1)/nt(2)/nt(3)
-          if(i==1.or.i==nt(1)/2+1) weight = 1.0/nt(1)/nt(2)/nt(3)
-          r = sqrt( wavNum(3)**2 + wavNum(2)**2 + wavNum(1)**2 )
-          !Find the bin number for this radius. Bins have width 1.0/pointsPerWvNum.
-          intR = int( r*l(3)/2/pi + 0.5) 
-          if(r.lt.2*pi*5./l(3)) then
-            eikdotx = exp( cmplx(0.0, sum( wavNum(:)*farPos(:))))
-            do ii = 1,3
-              dVeldx(1,ii) = dVeldx(1,ii) + weight * real( cmplx(0.0, wavNum(ii) ) * uHat(i,j,k) * eikdotx)
-              dVeldx(2,ii) = dVeldx(2,ii) + weight * real( cmplx(0.0, wavNum(ii) ) * vHat(i,j,k) * eikdotx)
-              dVeldx(3,ii) = dVeldx(3,ii) + weight * real( cmplx(0.0, wavNum(ii) ) * wHat(i,j,k) * eikdotx)
-            enddo
-          endif
-        enddo
-      enddo
+    !call velGradBlob(drop,vel,dVeldx)
+    !call saveStrain(outDir,'Drop',time,dVeldx)
+    do i=1,5
+      r=l(3)/12.*i
+      write(filename,'(i3.3)') nint(r)
+      call velGradBox(dropPos(1,:),r,vel,dVeldx)
+      call saveStrain(outDir,'BoxR'//trim(filename),time,dVeldx)
+      call velGradBox(farPos,r,vel,dVeldx)
+      call saveStrain(outDir,'FarBoxR'//trim(filename),time,dVeldx)
+      call makeSphere(dropPos(1,:),r,drop)
+      !write(*,*) 'sphere',sum(1.*drop)/(1.*nt(1))**3
+      call velGradBlob(drop,vel,dVeldx)
+      call saveStrain(outDir,'SphereR'//trim(filename),time,dVeldx)
+      call makeSphere(farPos,r,drop)
+      call velGradBlob(drop,vel,dVeldx)
+      call saveStrain(outDir,'FarSphereR'//trim(filename),time,dVeldx)
+      call velGradModes(dropPos(1,:),r,uHat,vHat,wHat,dVeldx)
+      call saveStrain(outDir,'Modes',time,dVeldx)
+      call velGradModes(farPos,r,uHat,vHat,wHat,dVeldx)
+      call saveStrain(outDir,'FarModesR'//trim(filename),time,dVeldx)
     enddo
-    call saveStrain(outDir,'FarModes',time,dVeldx)
     write(statU,'(ES16.7E3,i16,4ES16.7E3,6i16,3ES16.7E3)') time,dropSize,dropArea,deformation,kurMean,kurStdDev,&
           last0(:),last1(:),kurInv,kurInvSq,surPow
     flush(statU)
