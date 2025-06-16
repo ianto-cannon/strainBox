@@ -31,18 +31,18 @@ def areaVsTime():
   fig.savefig(fname, bbox_inches='tight', transparent=True, format='pdf', dpi=600)
   return
 
-def surPowVsWaveNumber(): 
+def energyVsWaveNumber(): 
   plt.rcdefaults()
-  plt.rcParams.update({"text.usetex": True})
+  plt.rcParams.update({"text.usetex": True,'font.size' : 12,})
   fig, ax = plt.subplots(1)#, figsize=[columnWid, .6*columnWid])
   ax.tick_params(which='both', direction='in', top=True, right=True)
   ax.set_xlabel('$kL/2\\pi$', rotation=0)
-  ax.set_ylabel('$\\mathbf{\\hat{f}\\cdot\\hat u}$', rotation=0)
+  ax.set_ylabel('$\\mathbf{\\hat u\\cdot\\hat u^*}$', rotation=0, labelpad=15)
   ax.set_xscale('log')
   ax.set_yscale('log')
   ax.set_xlim([1e0,1e2])
   #ax.set_ylim([1e-2,1e2])
-  spec=np.zeros(87)
+  spec=np.zeros(85)
   count=0
   for i in range(200):
     fname = f'/home/ianto.cannon/drops/boxStrain/we_05BoxLBy2p5/run_break_{i:03}/ESpec.txt'
@@ -54,22 +54,51 @@ def surPowVsWaveNumber():
       print(f"File not found: {fname}, skipping.")
       continue
     times=np.shape(df)[0]
-    #times=len(strain[:,0])
     print('times',times)
     if times<=100:continue
-    dfre = np.fft.rfft(df[50:-50,:], axis=0) / len(df[:,0])
-    #print('shp dfre',np.shape(dfre))
+    dfre = np.fft.rfft(df[50:-50,2:], axis=0) / len(df[50:-50,0])
     count+=1
     spec += (dfre[0,:].real-spec)/count
-    #print('shp spec',np.shape(spec))
-    #surSpec = np.array([np.mean(df[:,i]) for i in range(len(df[0,:]))])
-    #wavNumb = np.array([i/6 for i in range(len(df[0,:]))])
-    #wavNumb = np.array([i for i in range(len(df[0,:]))])
-    #ax.plot(wavNumb,surSpec,'.',c='b')
-    #ax.plot(wavNumb,-1*surSpec,'.',c='r')
-  ax.plot( spec,'.',c='b')
-  ax.plot(-spec,'.',c='r')
+  wavNumb = np.array([i+1 for i in range(len(spec))])
+  ax.plot(wavNumb, spec,'.',c='b')#,clip_on=False)
+  ax.plot(wavNumb,-spec,'.',c='r')#,clip_on=False)
   fname = 'plots/ESpec.pdf'
+  print('savin ',fname)
+  fig.savefig(fname, bbox_inches='tight', transparent=True, format='pdf', dpi=600)
+  return
+
+def surPowVsWaveNumber(): 
+  plt.rcdefaults()
+  plt.rcParams.update({"text.usetex": True,'font.size' : 12,})
+  fig, ax = plt.subplots(1)#, figsize=[columnWid, .6*columnWid])
+  ax.tick_params(which='both', direction='in', top=True, right=True)
+  ax.set_xlabel('$kL/2\\pi$', rotation=0)
+  ax.set_ylabel('$\\mathbf{\\hat f_\\sigma\\cdot\\hat u^*}$', rotation=0)#, labelpad=10)
+  ax.set_xscale('log')
+  ax.set_yscale('log')
+  ax.set_xlim([1e0,1e2])
+  #ax.set_ylim([1e-2,1e2])
+  spec=np.zeros(85)
+  count=0
+  for i in range(200):
+    fname = f'/home/ianto.cannon/drops/boxStrain/we_05BoxLBy2p5/run_break_{i:03}/FSpec.txt'
+    try:
+      with open(fname, encoding = 'utf-8') as f:
+        print('loadin ',fname)
+        df = np.loadtxt(f)
+    except FileNotFoundError:
+      print(f"File not found: {fname}, skipping.")
+      continue
+    times=np.shape(df)[0]
+    print('times',times)
+    if times<=100:continue
+    dfre = np.fft.rfft(df[50:-50,2:], axis=0) / len(df[50:-50,0])
+    count+=1
+    spec += (dfre[0,:].real-spec)/count
+  wavNumb = np.array([i+1 for i in range(len(spec))])
+  ax.plot(wavNumb, spec,'.',c='b')#,clip_on=False)
+  ax.plot(wavNumb,-spec,'.',c='r')#,clip_on=False)
+  fname = 'plots/FSpec.pdf'
   print('savin ',fname)
   fig.savefig(fname, bbox_inches='tight', transparent=True, format='pdf', dpi=600)
   return
@@ -85,19 +114,32 @@ def surPowFreqVsWaveNumber():
   ax.set_yscale('log')
   ax.set_xlim([1,129])
   ax.set_ylim([1,98])
-  fname = 'FSpec.txt'
-  with open(fname, encoding = 'utf-8') as f:
-    print('loadin ',fname)
-    df = np.loadtxt(f)
-  print('shapedf',np.shape(df))
-  dfre = np.fft.rfft(df[:,1:], axis=0) / len(df[:,0])
+  spec=np.zeros((51,85))
+  count=0
+  for i in range(200):
+    fname = f'/home/ianto.cannon/drops/boxStrain/we_05BoxLBy2p5/run_break_{i:03}/FSpec.txt'
+    try:
+      with open(fname, encoding = 'utf-8') as f:
+        print('loadin ',fname)
+        df = np.loadtxt(f)
+    except FileNotFoundError:
+      print(f"File not found: {fname}, skipping.")
+      continue
+    times=np.shape(df)[0]
+    print('times',times)
+    if times<=150:continue
+    dfre = np.fft.rfft(df[-150:-50,2:], axis=0) / 100 #len(df[50:-50,0])
+    count+=1
+    spec += (dfre.real-spec)/count
+  #dfre = np.fft.rfft(df[:,1:], axis=0) / len(df[:,0])
   #freqs = np.rfft.fftfreq(len(df[:,0]))
-  wavNumb = np.array([i/6 for i in range(len(df[0,:]))])
+  #wavNumb = np.array([i/6 for i in range(len(df[0,:]))])
+  #wavNumb = range(1,100)
   #ax.pcolormesh(wavNumb, freqs, dfre, shading='auto')
   #mappable = ax.pcolormesh(np.log(np.abs(dfre)**2))
   mappable = ax.pcolormesh(dfre.real, cmap='bwr', vmin=-4, vmax=4)
   plt.colorbar(mappable, ax=ax, label='Magnitude')
-  fname = 'surPowFreqVsWaveNumber.pdf'
+  fname = 'plots/surPowFreqVsWaveNumber.pdf'
   print('savin ',fname)
   fig.savefig(fname, bbox_inches='tight', transparent=True, format='pdf', dpi=600)
   return
@@ -205,8 +247,9 @@ def strainVsTime():
     fig.savefig(fname, bbox_inches='tight', transparent=True, format='pdf', dpi=600)
   return
 
-surPowVsWaveNumber()
-#surPowFreqVsWaveNumber()
+#surPowVsWaveNumber()
+#energyVsWaveNumber()
+surPowFreqVsWaveNumber()
 #areaVsTime()
 #MoIAlignStrain()
 #sanBernado()
