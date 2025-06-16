@@ -33,27 +33,43 @@ def areaVsTime():
 
 def surPowVsWaveNumber(): 
   plt.rcdefaults()
-  plt.rcParams.update({"text.usetex": True,'font.size' : 12,})
+  plt.rcParams.update({"text.usetex": True})
   fig, ax = plt.subplots(1)#, figsize=[columnWid, .6*columnWid])
   ax.tick_params(which='both', direction='in', top=True, right=True)
-  ax.set_xlabel('$k/k_d$', rotation=0)
+  ax.set_xlabel('$kL/2\\pi$', rotation=0)
   ax.set_ylabel('$\\mathbf{\\hat{f}\\cdot\\hat u}$', rotation=0)
   ax.set_xscale('log')
   ax.set_yscale('log')
-  ax.set_ylim([1e-3,1e2])
-  fname = 'FSpec.txt'
-  with open(fname, encoding = 'utf-8') as f:
-    print('loadin ',fname)
-    df = np.loadtxt(f)
-  dfre = np.fft.rfft(df, axis=0) / len(df[:,0])
-  surSpec = np.array([np.mean(df[:,i]) for i in range(len(df[0,:]))])
-  #wavNumb = np.array([i/6 for i in range(len(df[0,:]))])
-  wavNumb = np.array([i for i in range(len(df[0,:]))])
-  ax.plot(wavNumb,surSpec,'.',c='b')
-  ax.plot(wavNumb,-1*surSpec,'.',c='r')
-  ax.plot(wavNumb,dfre[0,:].real,c='b')
-  ax.plot(wavNumb,-dfre[0,:].real,c='r')
-  fname = 'FSpec.pdf'
+  ax.set_xlim([1e0,1e2])
+  #ax.set_ylim([1e-2,1e2])
+  spec=np.zeros(87)
+  count=0
+  for i in range(200):
+    fname = f'/home/ianto.cannon/drops/boxStrain/we_05BoxLBy2p5/run_break_{i:03}/ESpec.txt'
+    try:
+      with open(fname, encoding = 'utf-8') as f:
+        print('loadin ',fname)
+        df = np.loadtxt(f)
+    except FileNotFoundError:
+      print(f"File not found: {fname}, skipping.")
+      continue
+    times=np.shape(df)[0]
+    #times=len(strain[:,0])
+    print('times',times)
+    if times<=100:continue
+    dfre = np.fft.rfft(df[50:-50,:], axis=0) / len(df[:,0])
+    #print('shp dfre',np.shape(dfre))
+    count+=1
+    spec += (dfre[0,:].real-spec)/count
+    #print('shp spec',np.shape(spec))
+    #surSpec = np.array([np.mean(df[:,i]) for i in range(len(df[0,:]))])
+    #wavNumb = np.array([i/6 for i in range(len(df[0,:]))])
+    #wavNumb = np.array([i for i in range(len(df[0,:]))])
+    #ax.plot(wavNumb,surSpec,'.',c='b')
+    #ax.plot(wavNumb,-1*surSpec,'.',c='r')
+  ax.plot( spec,'.',c='b')
+  ax.plot(-spec,'.',c='r')
+  fname = 'plots/ESpec.pdf'
   print('savin ',fname)
   fig.savefig(fname, bbox_inches='tight', transparent=True, format='pdf', dpi=600)
   return
@@ -189,9 +205,9 @@ def strainVsTime():
     fig.savefig(fname, bbox_inches='tight', transparent=True, format='pdf', dpi=600)
   return
 
-#surPowVsWaveNumber()
+surPowVsWaveNumber()
 #surPowFreqVsWaveNumber()
 #areaVsTime()
 #MoIAlignStrain()
 #sanBernado()
-strainVsTime()
+#strainVsTime()
