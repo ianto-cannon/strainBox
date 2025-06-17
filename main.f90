@@ -63,14 +63,14 @@ do
   if (ios /= 0) exit
   str = trim( runName(11:) )
   read( str , *) runNum
-  if ( modulo( runNum, ntask ) .ne. rank) cycle
-  !if ( runNum .ne. 0) cycle
+  !if ( modulo( runNum, ntask ) .ne. rank) cycle
+  if ( runNum .ne. 0) cycle
   inDir='/home/alberto.velamartin/drop_time/'//trim(weName)//trim(runName)
-  outDir='../'//trim(weName)//trim(runName)
-  !outDir='output/'
+  !outDir='../'//trim(weName)//trim(runName)
+  outDir='output/'
   call system('mkdir '//trim(outDir))
-  call system('ls '//trim(inDir)//'/field*.h5 > '//trim(outDir)//'/file_list.txt')
-  !call system('ls '//trim(inDir)//'/field.008.h5 > '//trim(outDir)//'/file_list.txt')
+  !call system('ls '//trim(inDir)//'/field*.h5 > '//trim(outDir)//'/file_list.txt')
+  call system('ls '//trim(inDir)//'/field.008.h5 > '//trim(outDir)//'/file_list.txt')
   fileEnd='.txt'
   open(newunit=statU,file=trim(outDir)//'/statDrops'//trim(fileEnd), access='append',form='formatted',status='REPLACE')
   open(newunit=posiU,file=trim(outDir)//'/posiDrops'//trim(fileEnd),access='append',form='formatted',status='REPLACE')
@@ -95,6 +95,8 @@ do
       call h5dclose_f(dset_id, error)
       call h5dopen_f(file_id, 'We', dset_id, error)
         call h5dread_f(dset_id, H5T_NATIVE_REAL, We, dims1d, error)
+      write(*,*) 'We', We
+      return
       call h5dclose_f(dset_id, error)
       call h5dopen_f(file_id, 'c', dset_id, error)
         call h5dread_f(dset_id, H5T_NATIVE_REAL, kur, dims, error)
