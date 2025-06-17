@@ -578,7 +578,7 @@ do
       call velGradBlob(drop,vel,dVeldx)
       call saveStrain(outDir,'FarSphereR'//trim(filename),time,dVeldx)
       call velGradModes(dropPos(1,:),r,uHat,vHat,wHat,dVeldx)
-      call saveStrain(outDir,'Modes',time,dVeldx)
+      call saveStrain(outDir,'Modes'//trim(filename),time,dVeldx)
       call velGradModes(farPos,r,uHat,vHat,wHat,dVeldx)
       call saveStrain(outDir,'FarModesR'//trim(filename),time,dVeldx)
     enddo
