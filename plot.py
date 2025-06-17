@@ -7,6 +7,7 @@ rho=We
 sigma=2*2**.5/3
 diam=2*np.pi/3
 tsig=(rho*diam**3/sigma)**.5
+td=diam**(2/3.)
 
 def areaVsTime(): 
   plt.rcdefaults()
@@ -160,7 +161,8 @@ def surPowFreqVsWaveNumber():
   fig, ax = plt.subplots(1)#, figsize=[columnWid, .6*columnWid])
   ax.tick_params(which='both', direction='in', top=True, right=True)
   ax.set_xlabel('$kd/2\\pi$', rotation=0)
-  ax.set_ylabel('$\\omega t_\\sigma /2\\pi$', rotation=0)
+  #ax.set_ylabel('$\\omega t_\\sigma /2\\pi$', rotation=0)
+  ax.set_ylabel('$\\omega t_d /2\\pi$', rotation=0)
   ax.set_xscale('log')
   #ax.set_yscale('log')
   cut=50
@@ -258,48 +260,66 @@ def sanBernado():
 def strainVsTime(): 
   plt.rcdefaults()
   plt.rcParams.update({"text.usetex": True,'font.size' : 12,})
-  for matrix in ['MoInDrops','strainModes','strainBox','strainFarModes','strainFarBox','strainLowPassBox','strainSphere','strainFarSphere']:
+  for matrix in ['MoInDrops']:#,'strainModes','strainBox','strainFarModes','strainFarBox','strainLowPassBox','strainSphere','strainFarSphere']:
     fig, ax = plt.subplots(1)#, figsize=[columnWid, .6*columnWid])
     ax.tick_params(which='both', direction='in', top=True, right=True)
-    ax.set_xlabel('$t$', rotation=0)
-    timelen=100
+    ax.set_xlabel('$(t-t_b)/tt_\\sigma$', rotation=0)
+    labels = [r'$s_1$', r'$s_2$', r'$s_3$']
+    if matrix=='MoInDrops': 
+      labels = [r'$I_1/I_d$', r'$I_2/I_d$', r'$I_3/I_d$']
+      ax.set_ylim([0,8])
+    #ax.set_xlim([-7,0])
+    cut=25
+    allStrain = []
     avgStrain=np.zeros((timelen,4))
     avgStrainSq=np.zeros((timelen,4))
     count=0
     for i in range(200):
-      #fname = f'/Users/iantocannon/Desktop/fsm/drops/boxStrain/we_05/run_break_{i:03}/'+matrix+'.txt'
-      fname = f'/home/ianto.cannon/drops/boxStrain/we_05/run_break_{i:03}/'+matrix+'.txt'
+      fname = f'/home/ianto.cannon/drops/boxStrain/we_05RBy12/run_break_{i:03}/'+matrix+'.txt'
       try:
         with open(fname, encoding = 'utf-8') as f:
-          print('loadin ',fname)
+          #print('loadin ',fname)
           strain = np.loadtxt(f)
       except FileNotFoundError:
         print(f"File not found: {fname}, skipping.")
         continue
-      times=np.shape(strain)[0]
-      #times=len(strain[:,0])
-      print('times',times)
-      if times<timelen:continue
-      if times>190:continue
+      if np.shape(strain)[0]>198:continue
+      if matrix=='MoInDrops': strain=strain*15/8/np.pi/(256/6)**5*3/2 #why 3/2 needed to get 1 at start?
       count+=1
-      avgStrain += (strain[-timelen:,:4]-avgStrain)/count
-      avgStrainSq += (strain[-timelen:,:4]**2-avgStrainSq)/count
+      #avgStrain += (strain[-timelen:,:4]-avgStrain)/count
+      #avgStrainSq += (strain[-timelen:,:4]**2-avgStrainSq)/count
+      #allStrain.append(strain[-timelen:, :4])
+      # Pad with NaNs if shorter than timelen
+      strain = strain[25:, :4]
+      if times < timelen:
+        pad_rows = np.full((200-np.shape(strain)[0], 4), np.nan)
+        stran = np.vstack((pad_rows, strain))
+      else:
+        s = s[-timelen:]  # trim to last `timelen` rows
+      allStrain.append(s)
     print('count',count)
     stDev = np.sqrt(avgStrainSq - avgStrain**2)
-    labels = [r'$s_1$', r'$s_2$', r'$s_3$']
+    strainData = np.stack(allStrain, axis=0)
+    p10 = np.nanpercentile(strainData, 20, axis=0)
+    p50 = np.nanpercentile(strainData, 50, axis=0)
+    p90 = np.nanpercentile(strainData, 80, axis=0)
+    m = np.nanmean(strainData, axis=0)
+    std = np.nanstd(strainData, axis=0)
+    #time = np.array([(i-timelen+1)*timestep/tsig for i in range(timelen)])
+    time = np.array([(i-timelen+1) for i in range(timelen)])
     colors = ['C0', 'C1', 'C2']
     for i in range(1, 4):
-        ax.plot(strain[-timelen:,i], color=colors[i-1], alpha=.3)
-        ax.plot(avgStrain[:, i], label=labels[i-1], color=colors[i-1])
-        ax.fill_between(
-            np.arange(avgStrain.shape[0]),
-            avgStrain[:, i] - stDev[:, i],
-            avgStrain[:, i] + stDev[:, i],
-            color=colors[i-1],
-            alpha=0.3
-        ) 
+      #ax.plot(time, strain[-timelen:,i], color=colors[i-1], alpha=.3)
+      #ax.plot(time, avgStrain[:, i], label=labels[i-1], color=colors[i-1])
+      ax.plot(time, m[:,i], label=labels[i-1], color=colors[i-1])
+      ax.fill_between(
+        time,p10[:,i],p90[:,i],
+        #avgStrain[:, i] - stDev[:, i],
+        #avgStrain[:, i] + stDev[:, i],
+        color=colors[i-1],
+        alpha=0.3) 
     ax.legend()
-    fname = 'plots/' + matrix+'VsTimeDash.pdf'
+    fname = 'plots/' + matrix+'VsTimeDecile.pdf'
     print('savin ',fname)
     fig.savefig(fname, bbox_inches='tight', transparent=True, format='pdf', dpi=600)
   return
@@ -307,8 +327,8 @@ def strainVsTime():
 #surPowVsWaveNumber()
 #surPowVsFreg()
 #energyVsWaveNumber()
-surPowFreqVsWaveNumber()
+#surPowFreqVsWaveNumber()
 #areaVsTime()
 #MoIAlignStrain()
 #sanBernado()
-#strainVsTime()
+strainVsTime()
