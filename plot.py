@@ -1,5 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
+plt.rcdefaults()
+plt.rcParams.update({"text.usetex": True,'font.size' : 14,})
 timestep=.05
 nyqTime=2*timestep
 We=.05
@@ -10,8 +12,6 @@ tsig=(rho*diam**3/sigma)**.5
 td=diam**(2/3.)
 
 def areaVsTime(): 
-  plt.rcdefaults()
-  plt.rcParams.update({"text.usetex": True,'font.size' : 12,})
   fig, ax = plt.subplots(1)#, figsize=[columnWid, .6*columnWid])
   ax.tick_params(which='both', direction='in', top=True, right=True)
   ax.set_xlabel('$t$', rotation=0)
@@ -41,8 +41,6 @@ def areaVsTime():
   return
 
 def energyVsWaveNumber(): 
-  plt.rcdefaults()
-  plt.rcParams.update({"text.usetex": True,'font.size' : 12,})
   fig, ax = plt.subplots(1)#, figsize=[columnWid, .6*columnWid])
   ax.tick_params(which='both', direction='in', top=True, right=True)
   ax.set_xlabel('$kL/2\\pi$', rotation=0)
@@ -77,56 +75,137 @@ def energyVsWaveNumber():
   return
 
 def surPowVsWaveNumber(): 
-  plt.rcdefaults()
-  plt.rcParams.update({"text.usetex": True,'font.size' : 12,})
-  fig, ax = plt.subplots(1)#, figsize=[columnWid, .6*columnWid])
-  ax.tick_params(which='both', direction='in', top=True, right=True)
-  ax.set_xlabel('$kL/2\\pi$', rotation=0)
-  ax.set_ylabel('$\\mathbf{\\hat f_\\sigma\\cdot\\hat u^*}$', rotation=0)#, labelpad=10)
-  ax.set_xscale('log')
-  ax.set_yscale('log')
-  ax.set_xlim([1e0,1e2])
-  #ax.set_ylim([1e-2,1e2])
+  fig, ax = plt.subplots(nrows=2,ncols=1, figsize=(6.4/1.5, 4.8))
+  for i in range(2):
+    ax[i].tick_params(which='both', direction='in', top=True, right=True)
+    ax[i].set_yscale('log')
+    ax[i].set_xscale('log')
+  #ax.set_ylabel('$\\mathbf{\\hat f_\\sigma\\cdot\\hat u^*}$', rotation=0)#, labelpad=10)
+  ax[0].set_ylabel('$\\frac{\\mathbf{\\hat f_\\sigma\\cdot\\hat u^*}}{\\epsilon}$', rotation=0, size=20, labelpad=10)
+  ax[1].set_ylabel('$\\frac{-\\mathbf{\\hat f_\\sigma\\cdot\\hat u^*}}{\\epsilon}$', rotation=0, size=20, labelpad=10)
+  ax[0].tick_params(labelbottom=False)
+  ax[1].set_xlabel('$kd/2\\pi$', rotation=0)
+  ax[0].set_ylim([1e-1,2e2])
+  ax[1].set_ylim([2e2,1e-1])
   spec=np.zeros(85)
+  allSpec=[]
   count=0
   for i in range(200):
     fname = f'/home/ianto.cannon/drops/boxStrain/we_05BoxLBy2p5/run_break_{i:03}/FSpec.txt'
     try:
       with open(fname, encoding = 'utf-8') as f:
-        print('loadin ',fname)
+        #print('loadin ',fname)
         df = np.loadtxt(f)
     except FileNotFoundError:
       print(f"File not found: {fname}, skipping.")
       continue
     times=np.shape(df)[0]
-    print('times',times)
+    #print('times',times)
     if times<=100:continue
     dfre = np.fft.rfft(df[50:-50,2:], axis=0) / len(df[50:-50,0])
     count+=1
     spec += (dfre[0,:].real-spec)/count
-  wavNumb = np.array([i+1 for i in range(len(spec))])
-  ax.plot(wavNumb, spec,'.',c='b')#,clip_on=False)
-  ax.plot(wavNumb,-spec,'.',c='r')#,clip_on=False)
-  fname = 'plots/FSpec.pdf'
+    allSpec.append(dfre[0,:].real)
+  print('count',count)
+  wavNumb = np.array([(i+1)/3 for i in range(len(spec))])
+  specData = np.stack(allSpec, axis=0)
+  l = np.nanpercentile(specData, 25, axis=0)
+  m = np.nanpercentile(specData, 50, axis=0)
+  u = np.nanpercentile(specData, 75, axis=0)
+  #ax.plot(wavNumb, spec,'.',c='b')#,clip_on=False)
+  #ax.plot(wavNumb,-spec,'.',c='r')#,clip_on=False)
+  mSpec=-spec
+  spec[spec < 0] = np.nan
+  mSpec[mSpec < 0] = np.nan
+  #ax.plot(wavNumb, spec,c='b')#,clip_on=False)
+  #ax.plot(wavNumb,mSpec,c='r')#,clip_on=False)
+  ax[0].plot(wavNumb,m,c='b')#,clip_on=False)
+  ax[1].plot(wavNumb,-m,c='r')#,clip_on=False)
+  #print('l',l)
+  #print('u',u)
+  #ax.plot(wavNumb,l)#,color='b',alpha=0.3,edgecolor='none') 
+  #ax.plot(wavNumb,u)#,color='b',alpha=0.3,edgecolor='none') 
+  ax[0].fill_between(wavNumb,l,u,color='b',alpha=0.3,edgecolor='none') 
+  ax[1].fill_between(wavNumb,-l,-u,color='r',alpha=0.3,edgecolor='none') 
+  #ax.plot(wavNumb,mSpec,c='r')#,clip_on=False)
+  for i in range(2): ax[i].set_xlim([wavNumb[0],wavNumb[-1]])
+  plt.tight_layout()
+  fname = 'plots/FSpecLinLog.pdf'
+  print('savin ',fname)
+  fig.savefig(fname, bbox_inches='tight', transparent=True, format='pdf', dpi=600)
+  return
+
+def surPowWavVsWaveNumber(): 
+  fig, ax = plt.subplots()
+  ax.tick_params(which='both', direction='in', top=True, right=True)
+  ax.set_xscale('log')
+  ax.set_ylabel('$\\frac{\\mathbf{\\hat f_\\sigma\\cdot\\hat u^*}kd}{2\\pi\\epsilon}$', rotation=0, size=20, labelpad=10)
+  ax.set_xlabel('$kd/2\\pi$', rotation=0)
+  #ax.spines['bottom'].set_position('zero')
+  secax = ax.secondary_xaxis(0, transform=ax.transData)
+  secax.tick_params(which='both', direction='in', top=True, right=True)
+  secax.tick_params(
+      labelbottom=False,  # Remove bottom labels
+      labeltop=False,     # Remove top labels (secondary axes often default to top)
+      bottom=True,        # Show bottom ticks
+      top=True,           # Show top ticks
+      direction='inout',  # Extend both in and out
+      #length=6            # Length of ticks (adjust as needed)
+  )
+  ax.set_ylim([-40,80])
+  spec=np.zeros(85)
+  allSpec=[]
+  count=0
+  for i in range(200):
+    fname = f'/home/ianto.cannon/drops/boxStrain/we_05BoxLBy2p5/run_break_{i:03}/FSpec.txt'
+    try:
+      with open(fname, encoding = 'utf-8') as f:
+        df = np.loadtxt(f)
+    except FileNotFoundError:
+      print(f"File not found: {fname}, skipping.")
+      continue
+    times=np.shape(df)[0]
+    if times<=100:continue
+    dfre = np.fft.rfft(df[50:-50,2:], axis=0) / len(df[50:-50,0])
+    count+=1
+    spec += (dfre[0,:].real-spec)/count
+    allSpec.append(dfre[0,:].real)
+  print('count',count)
+  wavNumb = np.array([(i+1)/3 for i in range(len(spec))])
+  specData = np.stack(allSpec, axis=0)
+  l = np.nanpercentile(specData, 25, axis=0)*wavNumb
+  m = np.nanpercentile(specData, 50, axis=0)*wavNumb
+  u = np.nanpercentile(specData, 75, axis=0)*wavNumb
+  mSpec=-spec
+  spec[spec < 0] = np.nan
+  mSpec[mSpec < 0] = np.nan
+  ax.plot(wavNumb,m,c='b')#,clip_on=False)
+  ax.fill_between(wavNumb,l,u,color='b',alpha=0.3,edgecolor='none') 
+  ax.set_xlim([wavNumb[0],wavNumb[-1]])
+  fname = 'plots/FKSpec.pdf'
   print('savin ',fname)
   fig.savefig(fname, bbox_inches='tight', transparent=True, format='pdf', dpi=600)
   return
 
 def surPowVsFreg(): 
-  plt.rcdefaults()
-  plt.rcParams.update({"text.usetex": True,'font.size' : 12,})
-  fig, ax = plt.subplots(1)#, figsize=[columnWid, .6*columnWid])
-  ax.tick_params(which='both', direction='in', top=True, right=True)
-  ax.set_xlabel('$\\omega t_\\sigma /2\\pi$', rotation=0)
-  ax.set_ylabel('$\\mathbf{\\hat f_\\sigma\\cdot\\hat u^*}$', rotation=0)#, labelpad=10)
+  fig, ax = plt.subplots(nrows=2,ncols=1, figsize=(6.4/1.5, 4.8))
+  for i in range(2):
+    ax[i].tick_params(which='both', direction='in', top=True, right=True)
+    ax[i].set_yscale('log')
+  #ax.set_ylabel('$\\mathbf{\\hat f_\\sigma\\cdot\\hat u^*}$', rotation=0)#, labelpad=10)
+  ax[0].set_ylabel('$\\frac{\\mathbf{\\hat f_\\sigma\\cdot\\hat u^*}}{\\epsilon}$', rotation=0, size=20, labelpad=10)
+  ax[1].set_ylabel('$\\frac{-\\mathbf{\\hat f_\\sigma\\cdot\\hat u^*}}{\\epsilon}$', rotation=0, size=20, labelpad=10)
+  ax[0].tick_params(labelbottom=False)
+  ax[1].set_xlabel('$\\omega t_\\sigma /2\\pi$', rotation=0)
   #ax.set_xscale('log')
-  ax.set_yscale('log')
   #ax.set_xlim([1e0,1e2])
-  #ax.set_ylim([1e-2,1e2])
+  ax[0].set_ylim([1e-2,1e2])
+  ax[1].set_ylim([1e2,1e-2])
   cut=50
   timeLen=40
   spec=np.zeros(int(timeLen/2+1))
   count=0
+  allSpec=[]
   for i in range(200):
     #fname = f'/home/ianto.cannon/drops/boxStrain/we_05BoxLBy2p5/run_break_{i:03}/FSpec.txt'
     fname = f'/home/ianto.cannon/drops/boxStrain/we_05RBy12/run_break_{i:03}/FSpec.txt'
@@ -146,18 +225,79 @@ def surPowVsFreg():
     dfre = np.fft.rfft(df, axis=0) / timeLen
     count+=1
     spec += (dfre[:,0].real-spec)/count
+    allSpec.append(dfre[:,0].real)
   print('count',count)
+  specData = np.stack(allSpec, axis=0)
+  l = np.nanpercentile(specData, 45, axis=0)
+  m = np.nanpercentile(specData, 50, axis=0)
+  u = np.nanpercentile(specData, 55, axis=0)
   freq = np.array([i*tsig/nyqTime/int(timeLen/2+1) for i in range(int(timeLen/2+1))])
-  ax.plot(freq, spec,'.',c='b')#,clip_on=False)
-  ax.plot(freq,-spec,'.',c='r')#,clip_on=False)
+  #ax.plot(freq, spec,'.',c='b')#,clip_on=False)
+  #ax.plot(freq,-spec,'.',c='r')#,clip_on=False)
+  ax[0].plot(freq,spec, c='b')#,clip_on=False)
+  ax[1].plot(freq,-spec,c='r')#,clip_on=False)
+  ax[0].fill_between(freq,0,u,color='b',alpha=0.3,edgecolor='none') 
+  ax[1].fill_between(freq,-l,0,color='r',alpha=0.3,edgecolor='none') 
+  for i in range(2): ax[i].set_xlim([freq[0],freq[-1]])
+  plt.tight_layout()
   fname = 'plots/surPowVsFreq.pdf'
   print('savin ',fname)
   fig.savefig(fname, bbox_inches='tight', transparent=True, format='pdf', dpi=600)
   return
 
+def surPowFreqVsFreg(): 
+  fig, ax = plt.subplots()
+  ax.tick_params(which='both', direction='in', top=True, right=True)
+  secax = ax.secondary_xaxis(0, transform=ax.transData)
+  secax.tick_params(which='both', direction='in', top=True, right=True)
+  secax.tick_params(
+      labelbottom=False,  # Remove bottom labels
+      labeltop=False,     # Remove top labels (secondary axes often default to top)
+      bottom=True,        # Show bottom ticks
+      top=True,           # Show top ticks
+      direction='inout',  # Extend both in and out
+      #length=6            # Length of ticks (adjust as needed)
+  )
+  ax.set_ylabel('$\\frac{\\mathbf{\\hat f_\\sigma\\cdot\\hat u^*}\\omega t_\\sigma}{2\\pi\\epsilon}$', rotation=0, size=20, labelpad=20)
+  ax.set_xlabel('$\\omega t_\\sigma /2\\pi$', rotation=0)
+  ax.set_ylim([-1.5,2])
+  ax.set_xscale('log')
+  cut=50
+  timeLen=40
+  count=0
+  allSpec=[]
+  for i in range(200):
+    fname = f'/home/ianto.cannon/drops/boxStrain/we_05RBy12/run_break_{i:03}/FSpec.txt'
+    try:
+      with open(fname, encoding = 'utf-8') as f:
+        df = np.loadtxt(f)
+    except FileNotFoundError:
+      print(f"File not found: {fname}, skipping.")
+      continue
+    times=np.shape(df)[0]
+    if times<=timeLen+cut+10:continue
+    df=df[-timeLen-cut:-cut,2:]
+    dfre = np.fft.rfft(df, axis=0) / timeLen
+    count+=1
+    allSpec.append(dfre[1:,0].real)
+  print('count',count)
+  specData = np.stack(allSpec, axis=0)
+  freq = np.array([(i+1)*tsig/nyqTime/int(timeLen/2+1) for i in range(int(timeLen/2))])
+  l = np.nanpercentile(specData, 45, axis=0)*freq
+  m = np.nanpercentile(specData, 50, axis=0)*freq
+  u = np.nanpercentile(specData, 55, axis=0)*freq
+  ax.plot(freq,m, c='b')
+  ax.fill_between(freq,l,u,color='b',alpha=0.3,edgecolor='none') 
+  #ax.set_xlim([freq[0],6])
+  ax.set_xlim([0.4,6])
+  ax.set_xticks([0.4,0.5,0.7,1,2,3,4,5])
+  ax.set_xticklabels(['$0.4$','$0.5$','$0.7$','$1$','$2$','$3$','$4$','$5$'])
+  fname = 'plots/surPowFreqVsFreq.pdf'
+  print('savin ',fname)
+  fig.savefig(fname, bbox_inches='tight', transparent=True, format='pdf', dpi=600)
+  return
+
 def surPowFreqVsWaveNumber(): 
-  plt.rcdefaults()
-  plt.rcParams.update({"text.usetex": True,'font.size' : 12,})
   fig, ax = plt.subplots(1)#, figsize=[columnWid, .6*columnWid])
   ax.tick_params(which='both', direction='in', top=True, right=True)
   ax.set_xlabel('$kd/2\\pi$', rotation=0)
@@ -204,8 +344,6 @@ def surPowFreqVsWaveNumber():
   return
 
 def MoIAlignStrainVsTime(): 
-  plt.rcdefaults()
-  plt.rcParams.update({"text.usetex": True,'font.size' : 12,})
   fig, ax = plt.subplots(1)#, figsize=[columnWid, .6*columnWid])
   ax.tick_params(which='both', direction='in', top=True, right=True)
   ax.set_xlabel('$(t-t_b)/t_d$', rotation=0)
@@ -214,12 +352,15 @@ def MoIAlignStrainVsTime():
   cmap = plt.get_cmap('plasma')
   colors = [cmap(i) for i in np.linspace(0.8, 0.2, 3)] 
   ax.set_xlabel('$(t-t_b)/t_d$', rotation=0)
-  ax.set_ylabel('$\\mathbf{s_3\\cdot m_i}$', rotation=0)#, size=18)
+  ax.set_ylabel('$\\mathbf{s_i\\cdot m_1}$', rotation=0)#, size=18)
   ax.set_ylim([0,1])
   ax.set_xlim([-3,0])
   cut=30
   timeLen=100
   allStrain = []
+  allS1 = []
+  allS3 = []
+  allS2 = []
   count=0
   for i in range(200):
     fname = f'/home/ianto.cannon/drops/boxStrain/we_05RBy12/run_break_{i:03}/strainSphereR085.txt'
@@ -242,8 +383,11 @@ def MoIAlignStrainVsTime():
     inProdS3 = [ abs(sum(MoI[i,4:7]*strain[i,10:13])) for i in range(len(MoI[:,0])) ]
     inProdS2 = [ abs(sum(MoI[i,4:7]*strain[i,7:10])) for i in range(len(MoI[:,0])) ]
     inProdS1 = [ abs(sum(MoI[i,4:7]*strain[i,4:7])) for i in range(len(MoI[:,0])) ]
-    strain=np.stack([inProdS1,inProdS2,inProdS3], axis=-1)
-    allStrain.append(strain)#, axis=1))
+    s=np.stack([inProdS1,inProdS2,inProdS3], axis=-1)
+    allStrain.append(s)#, axis=1))
+    allS1.append(inProdS1)#, axis=1))
+    allS2.append(inProdS2)#, axis=1))
+    allS3.append(inProdS3)#, axis=1))
     count+=1
   print('count',count)
   strainData = np.stack(allStrain, axis=0)
@@ -251,23 +395,38 @@ def MoIAlignStrainVsTime():
   p50 = np.nanpercentile(strainData, 50, axis=0)
   p90 = np.nanpercentile(strainData, 75, axis=0)
   m = np.nanmean(strainData, axis=0)
-  std = np.nanstd(strainData, axis=0)
+  s1Data = np.stack(allS1, axis=0)
+  s2Data = np.stack(allS2, axis=0)
+  s3Data = np.stack(allS3, axis=0)
+  ms1 = np.nanmean(s1Data, axis=0)
+  ms2 = np.nanmean(s2Data, axis=0)
+  ms3 = np.nanmean(s3Data, axis=0)
+  ls1 = np.nanpercentile(s1Data, 25, axis=0)
+  us1 = np.nanpercentile(s1Data, 75, axis=0)
+  ls2 = np.nanpercentile(s2Data, 25, axis=0)
+  us2 = np.nanpercentile(s2Data, 75, axis=0)
+  ls3 = np.nanpercentile(s3Data, 25, axis=0)
+  us3 = np.nanpercentile(s3Data, 75, axis=0)
   time = np.array([(i+1-timeLen)*timestep/td for i in range(timeLen)])
-  for i in range(3):
+  ax.plot(time, ms1, label=labels[0], color=colors[0])
+  ax.plot(time, ms2, label=labels[1], color=colors[1])
+  ax.plot(time, ms3, label=labels[2], color=colors[2])
+  ax.fill_between(time,ls1,us1,color=colors[0],alpha=0.3,edgecolor='none') 
+  ax.fill_between(time,ls2,us2,color=colors[1],alpha=0.3,edgecolor='none') 
+  ax.fill_between(time,ls3,us3,color=colors[2],alpha=0.3,edgecolor='none') 
+  for i in range(-1):
     ax.plot(time, p50[:,i], label=labels[i-1], color=colors[i-1])
     ax.fill_between(
       time,p10[:,i],p90[:,i],
       #time,m[:,i]-std[:,i],m[:,i]+std[:,i],
       color=colors[i-1],
       alpha=0.3,edgecolor='none') 
-  fname = 'plots/MoIAlignStrainVsTime.pdf'
+  fname = 'plots/MoIAlignStrainQuartVsTime.pdf'
   print('savin ',fname)
   fig.savefig(fname, bbox_inches='tight', transparent=True, format='pdf', dpi=600)
   return
 
 def sanBernado(): 
-  import matplotlib.image as mpimg
-  plt.rcParams.update({"text.usetex": True})
   fig, ax = plt.subplots(nrows=1,ncols=2)
   h = 2.5
   img = mpimg.imread('SanBernardo_AlonsoCano2.jpg')
@@ -293,10 +452,8 @@ def sanBernado():
   return
 
 def strainVsTime(): 
-  plt.rcdefaults()
-  plt.rcParams.update({"text.usetex": True,'font.size' : 14,})
   for matrix in [
-  #'MoInDrops'
+  'MoInDrops'
   #'strainBoxR021',
   #'strainFarBoxR021',
   #'strainSphereR021',
@@ -314,7 +471,7 @@ def strainVsTime():
   #'strainFarModesR064',
   #'strainBoxR085',
   #'strainFarBoxR085',
-  'strainSphereR085',
+  #'strainSphereR085',
   #'strainFarSphereR085',
   #'strainFarModesR085',
   #'strainBoxR107',
@@ -335,19 +492,18 @@ def strainVsTime():
       ax.set_ylabel('$\\frac{I}{60\\rho\\pi d^5}$', rotation=0, size=20, labelpad=15)
       labels = ['$I_1/I_d$', '$I_2/I_d$', '$I_3/I_d$']
       labels = ['$I_1/I_d$', '$I_2/I_d$', '$I_3/I_d$']
-      ax.set_ylim([0,10])
+      #ax.set_ylim([0,10])
       xC=-2.25
       yC=8
-      ax.plot([xC-.6,xC+.6],[yC,yC], color=colors[0])
-      ax.plot([xC,xC],[yC-1,yC+1], color=colors[2])
+      #ax.plot([xC-.6,xC+.6],[yC,yC], color=colors[0])
+      #ax.plot([xC,xC],[yC-1,yC+1], color=colors[2])
       x=[]
       y=[]
       for phi in np.linspace(0,2*np.pi,100):
         x.append(xC+.5*np.cos(phi))
         y.append(yC+.7*np.sin(phi))
-      ax.plot(x,y, color='k')
+      #ax.plot(x,y, color='k')
     else:
-      ax.set_xlabel('$(t-t_b)/t_d$', rotation=0)
       ax.set_ylabel('$\\frac{Sd^{2/3}}{\\epsilon^{1/3}}$', rotation=0, size=20)
       ax.set_ylim([-.4,.4])
     ax.set_xlim([-3,0])
@@ -372,7 +528,7 @@ def strainVsTime():
       if strainLen>198:continue
       if strainLen<timeLen+cut:continue
       strain = strain[-timeLen:, :4]
-      if matrix=='MoInDrops': strain=strain*15/8/np.pi/(256/6)**5*3/2 
+      if matrix=='MoInDrops': strain=(strain*15/8/np.pi/(256/6)**5*3/2)**-.5
       else: strain=strain*(256/3.)**(2/3.)
       #why is factor of 3/2 needed to get I=1 at t=0? It corresponds to R=0.92L/6
       #times=np.shape(strain)[0]
@@ -404,13 +560,15 @@ def strainVsTime():
         color=colors[i-1],
         alpha=0.3,edgecolor='none') 
     #ax.legend()
-    fname = 'plots/' + matrix+'QuartVsTime.pdf'
+    fname = 'plots/Inv' + matrix+'VsTime.pdf'
     print('savin ',fname)
     fig.savefig(fname, bbox_inches='tight', transparent=True, format='pdf', dpi=600)
   return
 
 #surPowVsWaveNumber()
+#surPowWavVsWaveNumber()
 #surPowVsFreg()
+#surPowFreqVsFreg()
 #energyVsWaveNumber()
 #surPowFreqVsWaveNumber()
 #areaVsTime()
