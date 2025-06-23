@@ -24,13 +24,13 @@ integer, dimension(0:1,0:1,0:1) :: paint, neigh
 integer, dimension(3)  :: last0,last1,pos
 integer :: i,j,k,ip,jp,kp,iq,jq,kq,iShifted,mom,ii,jj,im,jm,km
 integer :: cols,paintIt,faceOnCorner,genus,onInt,error,intR,ios,rank,ntask
-integer :: statU,posiU,veloU,MoInU,topoU,dirU,listU,specU,forcU
+integer :: statU,posiU,veloU,MoInU,topoU,dirU,listU,specU,forcU,fPosU,fNegU
 integer :: runNum
 real, dimension(maxMom,3) :: dropPos,dropVel
 real, dimension(3) :: MoIEiVals,wavNum,farPos
 real, dimension(3,3) :: MoI, dVeldx
 real :: diag,deformation,dropArea,dA,Cn,r,time,work(8),We,res,weight
-real :: maxNor,kurMean,kurStdDev,kurInv,kurInvSq,invSize,surPow
+real :: maxNor,kurMean,kurStdDev,kurInv,kurInvSq,invSize,surPow,sumSurPow
 type(ragged_array) :: hist(3) !histogram of drop mass in x, y and z directions
 !integer(kind=int64) :: dropSize, faces, edges, vertices
 integer :: dropSize, faces, edges, vertices
@@ -39,7 +39,7 @@ integer(hid_t) :: file_id, dset_id
 integer(hsize_t) :: dims(3)=(/nt(1),nt(2),nt(3)/),  dims1d(1)=(/1/) 
 complex, dimension(nt(1)/2+1,nt(2),nt(3)) :: cHat,chemPotHat,dxChemPotHat,dyChemPotHat,dzChemPotHat
 complex, dimension(nt(1)/2+1,nt(2),nt(3)) :: surfFXHat,surfFYHat,surfFZHat,uHat,vHat,wHat
-real, dimension(0:kAlias) :: FSpec,ESpec
+real, dimension(0:kAlias) :: FSpec,ESpec,FSpecPos,FSpecNeg
 type(C_PTR)  :: plan, plan_inverse
 call mpi_init(error)
 call mpi_comm_rank(mpi_comm_world,rank,error)
@@ -79,6 +79,8 @@ do
   open(newunit=topoU,file=trim(outDir)//'/topoDrops'//trim(fileEnd),access='append',form='formatted',status='REPLACE')
   open(newunit=specU,file=trim(outDir)//'/ESpec'//trim(fileEnd),access='append',form='formatted',status='REPLACE')
   open(newunit=forcU,file=trim(outDir)//'/FSpec'//trim(fileEnd),access='append',form='formatted',status='REPLACE')
+  open(newunit=fPosU,file=trim(outDir)//'/FSpec'//trim(fileEnd),access='append',form='formatted',status='REPLACE')
+  open(newunit=fNegU,file=trim(outDir)//'/FSpec'//trim(fileEnd),access='append',form='formatted',status='REPLACE')
   !Open the generated file list
   open(newunit=listU, file=trim(outDir)//'/file_list.txt', status='old', action='read')
   !Loop through file names
@@ -148,7 +150,7 @@ do
     vel(1,:,:,:)=u
     vel(2,:,:,:)=v
     vel(3,:,:,:)=w
-    !write(*,*)'rmsVel',sqrt(sum(vel**2)/nt(3)**3/3)
+    write(*,*)'rmsVel',sqrt(sum(vel**2)/nt(3)**3/3)
     dropSize=0
     do k=1,nt(3)
       do j=1,nt(2)
@@ -522,7 +524,7 @@ do
     !do k=1,250
     !  write(vortU,'(256ES16.7E3)') u(:,k,100)
     !enddo
-    surPow = sum(surfFX*u + surfFY*v + surfFZ*w)
+    sumSurPow = sum(surfFX*u + surfFY*v + surfFZ*w)
     call fftwf_execute_dft_r2c(plan, surfFX, surfFXHat)
     call fftwf_execute_dft_r2c(plan, surfFY, surfFYHat)
     call fftwf_execute_dft_r2c(plan, surfFZ, surfFZHat)
@@ -531,6 +533,8 @@ do
     call fftwf_execute_dft_r2c(plan, w, wHat)
     ESpec=0.0
     FSpec=0.0
+    FSpecNeg=0.0
+    FSpecPos=0.0
     dVeldx=0.0
     do k=1,nt(3)
       km=k-1
@@ -553,10 +557,16 @@ do
                                       ( abs(uHat(i,j,k))**2 + &
                                         abs(vHat(i,j,k))**2 + &
                                         abs(wHat(i,j,k))**2 )
-            FSpec(intR) = FSpec(intR) + weight* & 
-                                      ( real( conjg(uHat(i,j,k)) * surfFXHat(i,j,k) )+ &
-                                        real( conjg(vHat(i,j,k)) * surfFYHat(i,j,k) )+ &
-                                        real( conjg(wHat(i,j,k)) * surfFZHat(i,j,k) ))
+            surPow = weight * ( real( conjg(uHat(i,j,k)) * surfFXHat(i,j,k) )+ &
+                                real( conjg(vHat(i,j,k)) * surfFYHat(i,j,k) )+ &
+                                real( conjg(wHat(i,j,k)) * surfFZHat(i,j,k) ))
+            
+            FSpec(intR) = FSpec(intR) + surPow 
+            if(surPow.gt.0.0) then
+              FSpecPos(intR) = FSpecPos(intR) + surPow 
+            else
+              FSpecNeg(intR) = FSpecNeg(intR) + surPow 
+            endif
           endif
         enddo
       enddo
@@ -583,7 +593,7 @@ do
       call saveStrain(outDir,'FarModesR'//trim(filename),time,dVeldx)
     enddo
     write(statU,'(ES16.7E3,i16,4ES16.7E3,6i16,3ES16.7E3)') time,dropSize,dropArea,deformation,kurMean,kurStdDev,&
-          last0(:),last1(:),kurInv,kurInvSq,surPow
+          last0(:),last1(:),kurInv,kurInvSq,sumSurPow
     flush(statU)
     ! generate format string for writing 
     write(str,'(a,i0,a)') '(',1+maxMom*3,'(ES16.7E3))'
@@ -599,6 +609,11 @@ do
     write(specU,str) time,ESpec 
     flush(specU)
     write(forcU,str) time,FSpec 
+    flush(forcU)
+    write(fPosU,str) time,FSpecPos
+    flush(fPosU)
+    write(fNegU,str) time,FSpecNeg
+    flush(fNegU)
   enddo
   close(posiU,status='keep')
   close(veloU,status='keep')
@@ -607,6 +622,8 @@ do
   close(topoU,status='keep')
   close(specU,status='keep')
   close(forcU,status='keep')
+  close(fPosU,status='keep')
+  close(fNegU,status='keep')
   close(listU)
   call system('rm '//trim(outDir)//'/file_list.txt')
   call system('./transpose.awk.sh '//trim(outDir)//'/ESpec.txt > '//trim(outDir)//'/ESpecTransp.txt')

@@ -5,10 +5,10 @@ real, dimension(3), parameter :: dx = (/1.0,1.0,1.0/), l = nt*dx
 real, parameter :: pi=3.14159265358979
 contains
 
-subroutine velGradBox(realPos,rad,vel,dVeldxBox)
+subroutine velGradBox(realPos,rad,vel,dVeldxBox,ReStressBox)
 real, intent(in) :: realPos(3), rad
 real, intent(in), dimension(3,nt(1),nt(2),nt(3)) :: vel
-real, intent(out), dimension(3,3) :: dVeldxBox
+real, intent(out), dimension(3,3) :: dVeldxBox, ReStressBox
 integer :: boxWid, pos(3)
 integer :: i,j,k,jj,ip,jp,kp,im,jm,km,nVels
 real :: dVeldx(3)
@@ -26,8 +26,11 @@ do k = pos(3)-boxWid, pos(3)+boxWid
   do j = pos(2)-boxWid, pos(2)+boxWid
     jp = modulo(j-1, nt(2)) + 1
     nVels = nVels + 1
-    dVeldx(:) = (vel(:,ip,jp,kp) - vel(:,im,jp,kp)) / dx(1) / boxWid
+    velFront = vel(:,ip,jp,kp)
+    dVeldx(:) = (vel(:,ip,jp,kp) - vel(:,im,jp,kp)) / dx(jj) / boxWid
     dVeldxBox(:,jj) = dVeldxBox(:,jj) + ( dVeldx(:) - dVeldxBox(:,jj) ) / nVels
+    dVeldx(:) = ( vel(:,ip,jp,kp) * vel(jj,ip,jp,kp) - vel(:,im,jp,kp) * vel(jj,im,jp,kp) ) / dx(jj) / boxWid
+    ReStressBox(:,jj) = ReStressBox(:,jj) + ( dVeldx(:) - ReStressBox(:,jj) ) / nVels
   enddo
 enddo
 jj=2
@@ -41,8 +44,10 @@ do k = pos(3)-boxWid, pos(3)+boxWid
   do i = pos(1)-boxWid, pos(1)+boxWid
     ip = modulo(i-1, nt(1)) + 1
     nVels = nVels + 1
-    dVeldx(:) = (vel(:,ip,jp,kp) - vel(:,ip,jm,kp)) / dx(2) / boxWid
+    dVeldx(:) = (vel(:,ip,jp,kp) - vel(:,ip,jm,kp)) / dx(jj) / boxWid
     dVeldxBox(:,jj) = dVeldxBox(:,jj) + ( dVeldx(:) - dVeldxBox(:,jj) ) / nVels
+    dVeldx(:) = ( vel(:,ip,jp,kp) * vel(jj,ip,jp,kp) - vel(:,ip,jm,kp) * vel(jj,ip,jm,kp) ) / dx(jj) / boxWid
+    ReStressBox(:,jj) = ReStressBox(:,jj) + ( dVeldx(:) - ReStressBox(:,jj) ) / nVels
   enddo
 enddo
 jj=3
@@ -56,8 +61,10 @@ do j = pos(2)-boxWid, pos(2)+boxWid
   do i = pos(1)-boxWid, pos(1)+boxWid
     ip = modulo(i-1, nt(1)) + 1
     nVels = nVels + 1
-    dVeldx(:) = (vel(:,ip,jp,kp) - vel(:,ip,jp,km)) / dx(3) / boxWid
+    dVeldx(:) = (vel(:,ip,jp,kp) - vel(:,ip,jp,km)) / dx(jj) / boxWid
     dVeldxBox(:,jj) = dVeldxBox(:,jj) + ( dVeldx(:) - dVeldxBox(:,jj) ) / nVels
+    dVeldx(:) = ( vel(:,ip,jp,kp) * vel(jj,ip,jp,kp) - vel(:,ip,jp,km) * vel(jj,ip,jp,km) ) / dx(jj) / boxWid
+    ReStressBox(:,jj) = ReStressBox(:,jj) + ( dVeldx(:) - ReStressBox(:,jj) ) / nVels
   enddo
 enddo
 end subroutine velGradBox
@@ -107,13 +114,23 @@ dVeldxTot=0.0
 nVels = 0
 do k=1,nt(3)
   do j=1,nt(2)
-    firs0=0
-    last0=0
     do i=1,nt(1)
       p=i+1
       if(p.gt.nt(1)) p=p-nt(1)
-      if(blob(i,j,k).ne.0.and.blob(p,j,k).eq.0) firs0=p
-      if(blob(i,j,k).eq.0.and.blob(p,j,k).ne.0) last0=i
+      if(blob(i,j,k).eq.0.and.blob(p,j,k).ne.0) then
+        last0=i
+        do p=1,nt(1)
+          firs0=i+p
+          if(firs0.gt.nt(1)) firs0=firs0-nt(1)
+          if(blob(firs0,j,k).eq.0) then
+            width = p*dx(1)
+            nVels = nVels + 1
+            dVeldx(:) = (vel(:,firs0,j,k) - vel(:,last0,j,k)) / width
+            dVeldxTot(:,1) = dVeldxTot(:,1) + ( dVeldx(:) - dVeldxTot(:,1) ) / nVels
+            exit
+          endif
+        enddo
+      endif
     enddo
     if (last0.ne.0) then
       width = (firs0 - last0)*dx(1)
@@ -166,10 +183,10 @@ do j=1,nt(2)
 enddo
 end subroutine velGradBlob
 
-subroutine saveStrain(outDir,domain,time,dVeldx)
+subroutine saveStrain(outDir,domain,time,dVeldx,ReStress)
 character(*), intent(in) :: outDir, domain
 real, intent(in) :: dVeldx(3,3), time
-integer :: i,j,k,ii,jj,straU,dVelU,vortU,error
+integer :: i,j,k,ii,jj,straU,dVelU,vortU,error,ReStU
 real :: strain(3,3),strainEiVals(3),vort(3),QInva,RInva,work(8)
 do ii=1,3
   do jj=1,3
@@ -198,6 +215,10 @@ close(dVelU)
 open(newunit=straU,file=trim(outDir)//'/strain'//trim(domain)//'.txt',access='append',form='formatted')
   write(straU,'(13ES16.7E3)') time, strainEiVals, strain
 close(straU)
+call SSYEV('V','U',3,ReStress,3,strainEiVals,work,8,error)
+open(newunit=ReStU,file=trim(outDir)//'/ReStress'//trim(domain)//'.txt',access='append',form='formatted')
+  write(ReStU,'(13ES16.7E3)') time, strainEiVals, ReStress
+close(ReStU)
 open(newunit=vortU,file=trim(outDir)//'/vortic'//trim(domain)//'.txt',access='append',form='formatted')
   write(vortU,'( 4ES16.7E3)') time, vort
 close(vortU)

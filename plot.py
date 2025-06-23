@@ -8,6 +8,7 @@ We=.05
 rho=We
 sigma=2*2**.5/3
 diam=2*np.pi/3
+vis=.219 #from measurements of rmsVel and Re_lambda=58
 tsig=(rho*diam**3/sigma)**.5
 td=diam**(2/3.)
 cmap = plt.get_cmap('plasma')
@@ -622,6 +623,49 @@ def axesLenVsTime():
   fig.savefig(fname, bbox_inches='tight', transparent=True, format='pdf', dpi=600)
   return
 
+def aspectRatioVsTime(): 
+  fig, ax = plt.subplots(1)
+  ax.tick_params(which='both', direction='in', top=True, right=True)
+  ax.set_xlabel('$(t-t_b)/t_d$', rotation=0)
+  ax.set_ylabel('$\\frac{2L_3}{L_1+L_2}$', rotation=0, size=20, labelpad=15)
+  #ax.set_ylim([0,2])
+  ax.set_xlim([-3,0])
+  cut=30
+  timeLen=100
+  allStrain = []
+  count=0
+  for i in range(200):
+    fname = f'/home/ianto.cannon/drops/boxStrain/we_05RBy12/run_break_{i:03}/MoInDrops.txt'
+    try:
+      with open(fname, encoding = 'utf-8') as f:
+        strain = np.loadtxt(f)
+    except FileNotFoundError:
+      print(f"File not found: {fname}, skipping.")
+      continue
+    strainLen=np.shape(strain)[0]
+    if strainLen>198:continue
+    if strainLen<timeLen+cut:continue
+    strain = 2*strain[-timeLen:-1,3]/(strain[-timeLen:-1,2]+strain[-timeLen:-1,1])
+    #why is factor of 3/2 needed to get I=1 at t=0? It corresponds to R=0.92L/6
+    count+=1
+    allStrain.append(strain)
+  print('count',count)
+  strainData = np.stack(allStrain, axis=0)
+  p10 = np.nanpercentile(strainData, 25, axis=0)
+  p50 = np.nanpercentile(strainData, 50, axis=0)
+  p90 = np.nanpercentile(strainData, 75, axis=0)
+  m = np.nanmean(strainData, axis=0)
+  std = np.nanstd(strainData, axis=0)
+  time = np.array([(i+2-timeLen)*timestep/td for i in range(timeLen-1)])
+  ax.plot([-3,0], [np.pi/2,np.pi/2], color='k')
+  #ax.plot(time, strainData[31,:,i], color=colors[3-i])#, alpha=.3)
+  ax.plot(time, m, color=colors[2])
+  ax.fill_between(time,p10,p90,color=colors[2],alpha=0.3,edgecolor='none') 
+  fname = 'plots/aspectRatioVsTime.pdf'
+  print('savin ',fname)
+  fig.savefig(fname, bbox_inches='tight', transparent=True, format='pdf', dpi=600)
+  return
+
 def areaVsTime(): 
   fig, ax = plt.subplots(1)
   ax.tick_params(which='both', direction='in', top=True, right=True)
@@ -760,10 +804,11 @@ def strainDiagram():
 #energyVsWaveNumber()
 #surPowFreqVsWaveNumber()
 #areaVsTime()
-MoIAlignStrainVsTime()
+#MoIAlignStrainVsTime()
 #sanBernado()
 #strainVsTime()
 #axesLenVsTime()
+aspectRatioVsTime()
 #areaVsTime()
 #areaAllVsTime()
 #strainDiagram()
