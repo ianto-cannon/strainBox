@@ -26,7 +26,6 @@ do k = pos(3)-boxWid, pos(3)+boxWid
   do j = pos(2)-boxWid, pos(2)+boxWid
     jp = modulo(j-1, nt(2)) + 1
     nVels = nVels + 1
-    velFront = vel(:,ip,jp,kp)
     dVeldx(:) = (vel(:,ip,jp,kp) - vel(:,im,jp,kp)) / dx(jj) / boxWid
     dVeldxBox(:,jj) = dVeldxBox(:,jj) + ( dVeldx(:) - dVeldxBox(:,jj) ) / nVels
     dVeldx(:) = ( vel(:,ip,jp,kp) * vel(jj,ip,jp,kp) - vel(:,im,jp,kp) * vel(jj,im,jp,kp) ) / dx(jj) / boxWid
@@ -69,10 +68,10 @@ do j = pos(2)-boxWid, pos(2)+boxWid
 enddo
 end subroutine velGradBox
 
-subroutine velGradModes(pos,rad,uHat,vHat,wHat,dVeldx)
+subroutine velGradModes(pos,rad,uHat,vHat,wHat,dVeldx,ReStress)
 real, intent(in) :: pos(3), rad
 complex, intent(in), dimension(nt(1)/2+1,nt(2),nt(3)) :: uHat,vHat,wHat
-real, intent(out), dimension(3,3) :: dVeldx
+real, intent(out), dimension(3,3) :: dVeldx, ReStress
 integer :: i,j,k,ii,jm,km
 real :: wavNum(3), wav, weight
 complex :: eikdotx
@@ -104,10 +103,10 @@ do k=1,nt(3)
 enddo
 end subroutine velGradModes
 
-subroutine velGradBlob(blob,vel,dVeldxTot)
+subroutine velGradBlob(blob,vel,dVeldxTot,ReStress)
 integer, intent(in), dimension(nt(1),nt(2),nt(3)) :: blob
 real, intent(in), dimension(3,nt(1),nt(2),nt(3)) :: vel
-real, intent(out), dimension(3,3) :: dVeldxTot
+real, intent(out), dimension(3,3) :: dVeldxTot, ReStress
 integer :: i,j,k,p,nVels,firs0,last0
 real :: dVeldx(3), width
 dVeldxTot=0.0
@@ -185,7 +184,7 @@ end subroutine velGradBlob
 
 subroutine saveStrain(outDir,domain,time,dVeldx,ReStress)
 character(*), intent(in) :: outDir, domain
-real, intent(in) :: dVeldx(3,3), time
+real, intent(in) :: dVeldx(3,3), ReStress(3,3), time
 integer :: i,j,k,ii,jj,straU,dVelU,vortU,error,ReStU
 real :: strain(3,3),strainEiVals(3),vort(3),QInva,RInva,work(8)
 do ii=1,3
@@ -209,17 +208,21 @@ do j = 1,3
   enddo
 enddo
 call SSYEV('V','U',3,strain,3,strainEiVals,work,8,error)
-open(newunit=dVelU,file=trim(outDir)//'/dVeldx'//trim(domain)//'.txt',access='append',form='formatted')
+call system('mkdir '//trim(outDir)//'/dVeldx')
+open(newunit=dVelU,file=trim(outDir)//'/dVeldx/'//trim(domain)//'.txt',access='append',form='formatted')
   write(dVelU,'(12ES16.7E3)') time, QInva, RInva, dVeldx
 close(dVelU)
-open(newunit=straU,file=trim(outDir)//'/strain'//trim(domain)//'.txt',access='append',form='formatted')
+call system('mkdir '//trim(outDir)//'/strain')
+open(newunit=straU,file=trim(outDir)//'/strain/'//trim(domain)//'.txt',access='append',form='formatted')
   write(straU,'(13ES16.7E3)') time, strainEiVals, strain
 close(straU)
 call SSYEV('V','U',3,ReStress,3,strainEiVals,work,8,error)
-open(newunit=ReStU,file=trim(outDir)//'/ReStress'//trim(domain)//'.txt',access='append',form='formatted')
+call system('mkdir '//trim(outDir)//'/ReStress')
+open(newunit=ReStU,file=trim(outDir)//'/ReStress/'//trim(domain)//'.txt',access='append',form='formatted')
   write(ReStU,'(13ES16.7E3)') time, strainEiVals, ReStress
 close(ReStU)
-open(newunit=vortU,file=trim(outDir)//'/vortic'//trim(domain)//'.txt',access='append',form='formatted')
+call system('mkdir '//trim(outDir)//'/vortic')
+open(newunit=vortU,file=trim(outDir)//'/vortic/'//trim(domain)//'.txt',access='append',form='formatted')
   write(vortU,'( 4ES16.7E3)') time, vort
 close(vortU)
 end subroutine saveStrain

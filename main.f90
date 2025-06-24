@@ -28,9 +28,9 @@ integer :: statU,posiU,veloU,MoInU,topoU,dirU,listU,specU,forcU,fPosU,fNegU
 integer :: runNum
 real, dimension(maxMom,3) :: dropPos,dropVel
 real, dimension(3) :: MoIEiVals,wavNum,farPos
-real, dimension(3,3) :: MoI, dVeldx
+real, dimension(3,3) :: MoI, dVeldx, ReStress
 real :: diag,deformation,dropArea,dA,Cn,r,time,work(8),We,res,weight
-real :: maxNor,kurMean,kurStdDev,kurInv,kurInvSq,invSize,surPow,sumSurPow
+real :: maxNor,kurMean,kurStdDev,kurInv,kurInvSq,invSize,sumSurPow
 type(ragged_array) :: hist(3) !histogram of drop mass in x, y and z directions
 !integer(kind=int64) :: dropSize, faces, edges, vertices
 integer :: dropSize, faces, edges, vertices
@@ -39,6 +39,7 @@ integer(hid_t) :: file_id, dset_id
 integer(hsize_t) :: dims(3)=(/nt(1),nt(2),nt(3)/),  dims1d(1)=(/1/) 
 complex, dimension(nt(1)/2+1,nt(2),nt(3)) :: cHat,chemPotHat,dxChemPotHat,dyChemPotHat,dzChemPotHat
 complex, dimension(nt(1)/2+1,nt(2),nt(3)) :: surfFXHat,surfFYHat,surfFZHat,uHat,vHat,wHat
+complex :: surPow
 real, dimension(0:kAlias) :: FSpec,ESpec,FSpecPos,FSpecNeg
 type(C_PTR)  :: plan, plan_inverse
 call mpi_init(error)
@@ -557,12 +558,12 @@ do
                                       ( abs(uHat(i,j,k))**2 + &
                                         abs(vHat(i,j,k))**2 + &
                                         abs(wHat(i,j,k))**2 )
-            surPow = weight * ( real( conjg(uHat(i,j,k)) * surfFXHat(i,j,k) )+ &
-                                real( conjg(vHat(i,j,k)) * surfFYHat(i,j,k) )+ &
-                                real( conjg(wHat(i,j,k)) * surfFZHat(i,j,k) ))
+            surPow = weight * ( conjg(uHat(i,j,k)) * surfFXHat(i,j,k) + &
+                                conjg(vHat(i,j,k)) * surfFYHat(i,j,k) + &
+                                conjg(wHat(i,j,k)) * surfFZHat(i,j,k) )
             
             FSpec(intR) = FSpec(intR) + surPow 
-            if(surPow.gt.0.0) then
+            if(real(surPow).gt.0.0) then
               FSpecPos(intR) = FSpecPos(intR) + surPow 
             else
               FSpecNeg(intR) = FSpecNeg(intR) + surPow 
@@ -576,21 +577,21 @@ do
     do i=1,5
       r=l(3)/12.*i
       write(filename,'(i3.3)') nint(r)
-      call velGradBox(dropPos(1,:),r,vel,dVeldx)
-      call saveStrain(outDir,'BoxR'//trim(filename),time,dVeldx)
-      call velGradBox(farPos,r,vel,dVeldx)
-      call saveStrain(outDir,'FarBoxR'//trim(filename),time,dVeldx)
+      call velGradBox(dropPos(1,:),r,vel,dVeldx,ReStress)
+      call saveStrain(outDir,'BoxR'//trim(filename),time,dVeldx,ReStress)
+      call velGradBox(farPos,r,vel,dVeldx,ReStress)
+      call saveStrain(outDir,'FarBoxR'//trim(filename),time,dVeldx,ReStress)
       call makeSphere(dropPos(1,:),r,drop)
       !write(*,*) 'sphere',sum(1.*drop)/(1.*nt(1))**3
-      call velGradBlob(drop,vel,dVeldx)
-      call saveStrain(outDir,'SphereR'//trim(filename),time,dVeldx)
+      call velGradBlob(drop,vel,dVeldx,ReStress)
+      call saveStrain(outDir,'SphereR'//trim(filename),time,dVeldx,ReStress)
       call makeSphere(farPos,r,drop)
-      call velGradBlob(drop,vel,dVeldx)
-      call saveStrain(outDir,'FarSphereR'//trim(filename),time,dVeldx)
-      call velGradModes(dropPos(1,:),r,uHat,vHat,wHat,dVeldx)
-      call saveStrain(outDir,'Modes'//trim(filename),time,dVeldx)
-      call velGradModes(farPos,r,uHat,vHat,wHat,dVeldx)
-      call saveStrain(outDir,'FarModesR'//trim(filename),time,dVeldx)
+      call velGradBlob(drop,vel,dVeldx,ReStress)
+      call saveStrain(outDir,'FarSphereR'//trim(filename),time,dVeldx,ReStress)
+      call velGradModes(dropPos(1,:),r,uHat,vHat,wHat,dVeldx,ReStress)
+      call saveStrain(outDir,'Modes'//trim(filename),time,dVeldx,ReStress)
+      call velGradModes(farPos,r,uHat,vHat,wHat,dVeldx,ReStress)
+      call saveStrain(outDir,'FarModesR'//trim(filename),time,dVeldx,ReStress)
     enddo
     write(statU,'(ES16.7E3,i16,4ES16.7E3,6i16,3ES16.7E3)') time,dropSize,dropArea,deformation,kurMean,kurStdDev,&
           last0(:),last1(:),kurInv,kurInvSq,sumSurPow
