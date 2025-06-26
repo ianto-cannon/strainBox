@@ -131,53 +131,52 @@ do k=1,nt(3)
         enddo
       endif
     enddo
-    if (last0.ne.0) then
-      width = (firs0 - last0)*dx(1)
-      if (width.lt.0.0) width = width + l(1)
-      nVels = nVels + 1
-      dVeldx(:) = (vel(:,firs0,j,k) - vel(:,last0,j,k)) / width
-      dVeldxTot(:,1) = dVeldxTot(:,1) + ( dVeldx(:) - dVeldxTot(:,1) ) / nVels
-    endif
   enddo
 enddo
 nVels = 0
 do k=1,nt(3)
   do i=1,nt(1)
-    firs0=0
-    last0=0
     do j=1,nt(2)
       p=j+1
       if(p.gt.nt(2)) p=p-nt(2)
-      if(blob(i,j,k).ne.0.and.blob(i,p,k).eq.0) firs0=p
-      if(blob(i,j,k).eq.0.and.blob(i,p,k).ne.0) last0=j
+      if(blob(i,j,k).eq.0.and.blob(i,p,k).ne.0) then
+        last0=j
+        do p=1,nt(2)
+          firs0=j+p
+          if(firs0.gt.nt(2)) firs0=firs0-nt(2)
+          if(blob(i,firs0,k).eq.0) then
+            width = p*dx(2)
+            nVels = nVels + 1
+            dVeldx(:) = (vel(:,i,firs0,k) - vel(:,i,last0,k)) / width
+            dVeldxTot(:,2) = dVeldxTot(:,2) + ( dVeldx(:) - dVeldxTot(:,2) ) / nVels
+            exit
+          endif
+        enddo
+      endif
     enddo
-    if (last0.ne.0) then
-      width = (firs0 - last0)*dx(2)
-      if (width.lt.0.0) width = width + l(2)
-      nVels = nVels + 1
-      dVeldx(:) = (vel(:,i,firs0,k) - vel(:,i,last0,k)) / width
-      dVeldxTot(:,2) = dVeldxTot(:,2) + ( dVeldx(:) - dVeldxTot(:,2) ) / nVels
-    endif
   enddo
 enddo
 nVels = 0
 do j=1,nt(2)
   do i=1,nt(1)
-    firs0=0
-    last0=0
     do k=1,nt(3)
       p=k+1
       if(p.gt.nt(3)) p=p-nt(3)
-      if(blob(i,j,k).ne.0.and.blob(i,j,p).eq.0) firs0=p
-      if(blob(i,j,k).eq.0.and.blob(i,j,p).ne.0) last0=k
+      if(blob(i,j,k).eq.0.and.blob(i,j,p).ne.0) then
+        last0=k
+        do p=1,nt(3)
+          firs0=k+p
+          if(firs0.gt.nt(3)) firs0=firs0-nt(3)
+          if(blob(i,j,firs0).eq.0) then
+            width = p*dx(3)
+            nVels = nVels + 1
+            dVeldx(:) = (vel(:,i,j,firs0) - vel(:,i,j,last0)) / width
+            dVeldxTot(:,3) = dVeldxTot(:,3) + ( dVeldx(:) - dVeldxTot(:,3) ) / nVels
+            exit
+          endif
+        enddo
+      endif
     enddo
-    if (last0.ne.0) then
-      width = (firs0 - last0)*dx(3)
-      if (width.lt.0.0) width = width + l(3)
-      nVels = nVels + 1
-      dVeldx(:) = (vel(:,i,j,firs0) - vel(:,i,j,last0)) / width
-      dVeldxTot(:,3) = dVeldxTot(:,3) + ( dVeldx(:) - dVeldxTot(:,3) ) / nVels
-    endif
   enddo
 enddo
 end subroutine velGradBlob
@@ -208,21 +207,21 @@ do j = 1,3
   enddo
 enddo
 call SSYEV('V','U',3,strain,3,strainEiVals,work,8,error)
-call system('mkdir '//trim(outDir)//'/dVeldx')
-open(newunit=dVelU,file=trim(outDir)//'/dVeldx/'//trim(domain)//'.txt',access='append',form='formatted')
+call system('mkdir -p '//trim(outDir)//'dVeldx')
+open(newunit=dVelU,file=trim(outDir)//'dVeldx/'//trim(domain)//'.txt',access='append',form='formatted')
   write(dVelU,'(12ES16.7E3)') time, QInva, RInva, dVeldx
 close(dVelU)
-call system('mkdir '//trim(outDir)//'/strain')
-open(newunit=straU,file=trim(outDir)//'/strain/'//trim(domain)//'.txt',access='append',form='formatted')
+call system('mkdir -p '//trim(outDir)//'strain')
+open(newunit=straU,file=trim(outDir)//'strain/'//trim(domain)//'.txt',access='append',form='formatted')
   write(straU,'(13ES16.7E3)') time, strainEiVals, strain
 close(straU)
 call SSYEV('V','U',3,ReStress,3,strainEiVals,work,8,error)
-call system('mkdir '//trim(outDir)//'/ReStress')
-open(newunit=ReStU,file=trim(outDir)//'/ReStress/'//trim(domain)//'.txt',access='append',form='formatted')
+call system('mkdir -p '//trim(outDir)//'ReStress')
+open(newunit=ReStU,file=trim(outDir)//'ReStress/'//trim(domain)//'.txt',access='append',form='formatted')
   write(ReStU,'(13ES16.7E3)') time, strainEiVals, ReStress
 close(ReStU)
-call system('mkdir '//trim(outDir)//'/vortic')
-open(newunit=vortU,file=trim(outDir)//'/vortic/'//trim(domain)//'.txt',access='append',form='formatted')
+call system('mkdir -p '//trim(outDir)//'vortic')
+open(newunit=vortU,file=trim(outDir)//'vortic/'//trim(domain)//'.txt',access='append',form='formatted')
   write(vortU,'( 4ES16.7E3)') time, vort
 close(vortU)
 end subroutine saveStrain

@@ -14,22 +14,20 @@ end type ragged_array
 character(len=200) :: filename, runName, weName='we_05/', inDir, outDir
 real :: modnor
 integer,parameter :: maxMom=2
-integer,parameter :: kAlias=int((2.0/3.0)* (nt(3)/2))
-real, dimension(nt(1),nt(2),nt(3)) :: kur,u,v,w,phase,dxxPhase
-real, dimension(nt(1),nt(2),nt(3)) :: chemPot,dxChemPot,dyChemPot,dzChemPot,surfFX,surfFY,surfFZ
+real, dimension(nt(1),nt(2),nt(3)) :: kur,u,v,w,phase
 real, dimension(3,nt(1),nt(2),nt(3)) :: nor, vel
 !use int8 for non shared arrays to save memory
 integer, dimension(nt(1),nt(2),nt(3)) :: drop
 integer, dimension(0:1,0:1,0:1) :: paint, neigh
 integer, dimension(3)  :: last0,last1,pos
 integer :: i,j,k,ip,jp,kp,iq,jq,kq,iShifted,mom,ii,jj,im,jm,km
-integer :: cols,paintIt,faceOnCorner,genus,onInt,error,intR,ios,rank,ntask
-integer :: statU,posiU,veloU,MoInU,topoU,dirU,listU,specU,forcU,fPosU,fNegU
+integer :: cols,paintIt,faceOnCorner,genus,onInt,error,ios,rank,ntask
+integer :: statU,posiU,veloU,MoInU,topoU,dirU,listU
 integer :: runNum
 real, dimension(maxMom,3) :: dropPos,dropVel
-real, dimension(3) :: MoIEiVals,wavNum,farPos
+real, dimension(3) :: MoIEiVals,farPos
 real, dimension(3,3) :: MoI, dVeldx, ReStress
-real :: diag,deformation,dropArea,dA,Cn,r,time,work(8),We,res,weight
+real :: diag,deformation,dropArea,dA,Cn,r,time,work(8),We,res
 real :: maxNor,kurMean,kurStdDev,kurInv,kurInvSq,invSize,sumSurPow
 type(ragged_array) :: hist(3) !histogram of drop mass in x, y and z directions
 !integer(kind=int64) :: dropSize, faces, edges, vertices
@@ -37,11 +35,8 @@ integer :: dropSize, faces, edges, vertices
 character(len=200) :: fileEnd, str
 integer(hid_t) :: file_id, dset_id
 integer(hsize_t) :: dims(3)=(/nt(1),nt(2),nt(3)/),  dims1d(1)=(/1/) 
-complex, dimension(nt(1)/2+1,nt(2),nt(3)) :: cHat,chemPotHat,dxChemPotHat,dyChemPotHat,dzChemPotHat
-complex, dimension(nt(1)/2+1,nt(2),nt(3)) :: surfFXHat,surfFYHat,surfFZHat,uHat,vHat,wHat
-complex :: surPow
-real, dimension(0:kAlias) :: FSpec,ESpec,FSpecPos,FSpecNeg
-type(C_PTR)  :: plan, plan_inverse
+complex, dimension(nt(1)/2+1,nt(2),nt(3)) :: uHat,vHat,wHat
+type(C_PTR)  :: plan
 call mpi_init(error)
 call mpi_comm_rank(mpi_comm_world,rank,error)
 call mpi_comm_size(mpi_comm_world,ntask,error)
@@ -53,8 +48,7 @@ enddo
 hist(1)%indexName='1'
 hist(2)%indexName='2'
 hist(3)%indexName='3'
-plan        =fftwf_plan_dft_r2c_3d(nt(3), nt(2), nt(1), phase, cHat, FFTW_ESTIMATE)
-plan_inverse=fftwf_plan_dft_c2r_3d(nt(3), nt(2), nt(1), cHat, phase, FFTW_ESTIMATE)
+plan        =fftwf_plan_dft_r2c_3d(nt(3), nt(2), nt(1), u, uHat, FFTW_ESTIMATE)
 if (rank.eq.0) call system('ls /home/alberto.velamartin/drop_time/'//trim(weName)//&
                             '/ > ../'//trim(weName)//'dir_list.txt')
 call mpi_barrier(mpi_comm_world,error)
@@ -78,10 +72,6 @@ do
   open(newunit=veloU,file=trim(outDir)//'/veloDrops'//trim(fileEnd),access='append',form='formatted',status='REPLACE')
   open(newunit=MoInU,file=trim(outDir)//'/MoInDrops'//trim(fileEnd),access='append',form='formatted',status='REPLACE')
   open(newunit=topoU,file=trim(outDir)//'/topoDrops'//trim(fileEnd),access='append',form='formatted',status='REPLACE')
-  open(newunit=specU,file=trim(outDir)//'/ESpec'//trim(fileEnd),access='append',form='formatted',status='REPLACE')
-  open(newunit=forcU,file=trim(outDir)//'/FSpec'//trim(fileEnd),access='append',form='formatted',status='REPLACE')
-  open(newunit=fPosU,file=trim(outDir)//'/FSpec'//trim(fileEnd),access='append',form='formatted',status='REPLACE')
-  open(newunit=fNegU,file=trim(outDir)//'/FSpec'//trim(fileEnd),access='append',form='formatted',status='REPLACE')
   !Open the generated file list
   open(newunit=listU, file=trim(outDir)//'/file_list.txt', status='old', action='read')
   !Loop through file names
@@ -98,8 +88,6 @@ do
       call h5dclose_f(dset_id, error)
       call h5dopen_f(file_id, 'We', dset_id, error)
         call h5dread_f(dset_id, H5T_NATIVE_REAL, We, dims1d, error)
-      write(*,*) 'We', We
-      return
       call h5dclose_f(dset_id, error)
       call h5dopen_f(file_id, 'c', dset_id, error)
         call h5dread_f(dset_id, H5T_NATIVE_REAL, kur, dims, error)
@@ -470,110 +458,14 @@ do
       farPos(ii) = dropPos(1,ii) + 0.5*l(ii)
       if (farPos(ii).gt.l(ii)) farPos(ii) = farPos(ii) - l(ii)
     enddo
-    call fftwf_execute_dft_r2c(plan, phase, cHat)
-    do k=1,nt(3)
-      km=k-1
-      if (km.gt.nt(3)/2) km=km-nt(3)
-      wavNum(3)=km*2*pi/l(3)
-      do j=1,nt(2)
-        jm=j-1
-        if (jm.gt.nt(2)/2) jm=jm-nt(2)
-        wavNum(2)=jm*2*pi/l(2)
-        do i=1,nt(1)/2+1
-          wavNum(1)=(i-1)*2*pi/l(1)
-          cHat(i,j,k) = - (wavNum(3)**2 + wavNum(2)**2 + wavNum(1)**2) * cHat(i,j,k) /nt(1)/nt(2)/nt(3)
-        enddo
-      enddo
-    enddo
-    call fftwf_execute_dft_c2r(plan_inverse, cHat, dxxPhase)
-    chemPot = 1/Cn * (phase*phase - 1)*phase - Cn*dxxPhase
-    call fftwf_execute_dft_r2c(plan, chemPot, chemPotHat)
-    dxChemPotHat = cmplx(0.0,0.0)
-    dyChemPotHat = cmplx(0.0,0.0)
-    dzChemPotHat = cmplx(0.0,0.0)
-    do k=1,nt(3)
-      km=k-1
-      if (km.gt.nt(3)/2) km=km-nt(3)
-      if (abs(km).gt.kAlias) cycle
-      wavNum(3)=km*2*pi/l(3)
-      do j=1,nt(2)
-        jm=j-1
-        if (jm.gt.nt(2)/2) jm=jm-nt(2)
-        if (abs(jm).gt.kAlias) cycle
-        wavNum(2)=jm*2*pi/l(2)
-        do i=1,nt(1)/2+1
-          if (i-1.gt.kAlias) cycle
-          wavNum(1)=(i-1)*2*pi/l(1)
-          dxChemPotHat(i,j,k) = cmplx(0.0,1.0) * wavNum(1) * chemPotHat(i,j,k) /nt(1)/nt(2)/nt(3)
-          dyChemPotHat(i,j,k) = cmplx(0.0,1.0) * wavNum(2) * chemPotHat(i,j,k) /nt(1)/nt(2)/nt(3)
-          dzChemPotHat(i,j,k) = cmplx(0.0,1.0) * wavNum(3) * chemPotHat(i,j,k) /nt(1)/nt(2)/nt(3)
-        enddo
-      enddo
-    enddo
-    call fftwf_execute_dft_c2r(plan_inverse, dxChemPotHat, dxChemPot)
-    call fftwf_execute_dft_c2r(plan_inverse, dyChemPotHat, dyChemPot)
-    call fftwf_execute_dft_c2r(plan_inverse, dzChemPotHat, dzChemPot)
-    do k=1,nt(3)
-      do j=1,nt(2)
-        do i=1,nt(1)
-          surfFX(i,j,k) = phase(i,j,k) * dxChemPot(i,j,k)
-          surfFY(i,j,k) = phase(i,j,k) * dyChemPot(i,j,k)
-          surfFZ(i,j,k) = phase(i,j,k) * dzChemPot(i,j,k)
-        enddo
-      enddo
-    enddo
     !do k=1,250
     !  write(vortU,'(256ES16.7E3)') u(:,k,100)
     !enddo
-    sumSurPow = sum(surfFX*u + surfFY*v + surfFZ*w)
-    call fftwf_execute_dft_r2c(plan, surfFX, surfFXHat)
-    call fftwf_execute_dft_r2c(plan, surfFY, surfFYHat)
-    call fftwf_execute_dft_r2c(plan, surfFZ, surfFZHat)
     call fftwf_execute_dft_r2c(plan, u, uHat)
     call fftwf_execute_dft_r2c(plan, v, vHat)
     call fftwf_execute_dft_r2c(plan, w, wHat)
-    ESpec=0.0
-    FSpec=0.0
-    FSpecNeg=0.0
-    FSpecPos=0.0
-    dVeldx=0.0
-    do k=1,nt(3)
-      km=k-1
-      if (km.gt.nt(3)/2) km=km-nt(3)
-      wavNum(3)=km*2*pi/l(3)
-      do j=1,nt(2)
-        jm=j-1
-        if (jm.gt.nt(2)/2) jm=jm-nt(2)
-        wavNum(2)=jm*2*pi/l(2)
-        do i=1,nt(1)/2+1
-          wavNum(1)=(i-1)*2*pi/l(1)
-          r = sqrt( wavNum(3)**2 + wavNum(2)**2 + wavNum(1)**2 )
-          !Find the bin number for this radius. Bins have width 1.0/pointsPerWvNum.
-          intR = int( r*l(3)/2/pi + 0.5) 
-          if(intR.le.kAlias) then
-            !Half of the kx domain is missing from FFT of real, so we must double
-            weight = 2.0/nt(1)/nt(2)/nt(3)
-            if(i==1.or.i==nt(1)/2+1) weight = 1.0/nt(1)/nt(2)/nt(3)
-            ESpec(intR) = ESpec(intR) + weight* & 
-                                      ( abs(uHat(i,j,k))**2 + &
-                                        abs(vHat(i,j,k))**2 + &
-                                        abs(wHat(i,j,k))**2 )
-            surPow = weight * ( conjg(uHat(i,j,k)) * surfFXHat(i,j,k) + &
-                                conjg(vHat(i,j,k)) * surfFYHat(i,j,k) + &
-                                conjg(wHat(i,j,k)) * surfFZHat(i,j,k) )
-            
-            FSpec(intR) = FSpec(intR) + surPow 
-            if(real(surPow).gt.0.0) then
-              FSpecPos(intR) = FSpecPos(intR) + surPow 
-            else
-              FSpecNeg(intR) = FSpecNeg(intR) + surPow 
-            endif
-          endif
-        enddo
-      enddo
-    enddo
-    !call velGradBlob(drop,vel,dVeldx)
-    !call saveStrain(outDir,'Drop',time,dVeldx)
+    call velGradBlob(drop,vel,dVeldx,ReStress)
+    call saveStrain(outDir,'Drop',time,dVeldx,ReStress)
     do i=1,5
       r=l(3)/12.*i
       write(filename,'(i3.3)') nint(r)
@@ -606,35 +498,19 @@ do
     flush(MoInU)
     write(topoU,'(ES16.7E3, 4i16)') time,vertices,edges,faces,genus
     flush(topoU)
-    write(str,'(a,i0,a)') '(',nt(3)/2+2,'(ES16.7E3))'
-    write(specU,str) time,ESpec 
-    flush(specU)
-    write(forcU,str) time,FSpec 
-    flush(forcU)
-    write(fPosU,str) time,FSpecPos
-    flush(fPosU)
-    write(fNegU,str) time,FSpecNeg
-    flush(fNegU)
   enddo
   close(posiU,status='keep')
   close(veloU,status='keep')
   close(MoInU,status='keep')
   close(statU,status='keep')
   close(topoU,status='keep')
-  close(specU,status='keep')
-  close(forcU,status='keep')
-  close(fPosU,status='keep')
-  close(fNegU,status='keep')
   close(listU)
   call system('rm '//trim(outDir)//'/file_list.txt')
-  call system('./transpose.awk.sh '//trim(outDir)//'/ESpec.txt > '//trim(outDir)//'/ESpecTransp.txt')
-  call system('./transpose.awk.sh '//trim(outDir)//'/FSpec.txt > '//trim(outDir)//'/FSpecTransp.txt')
 enddo
 do ii=1,3
   deallocate(hist(ii)%v)
 enddo
 call fftw_destroy_plan(plan)
-call fftw_destroy_plan(plan_inverse)
 call fftw_cleanup()
 write(*,*) 'rank',rank,'done'
 call mpi_barrier(mpi_comm_world,error)
