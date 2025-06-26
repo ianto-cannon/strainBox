@@ -74,14 +74,15 @@ do
       call h5dopen_f(file_id, 'u', dset_id, error)
         call h5dread_f(dset_id, H5T_NATIVE_REAL, dxxPhase, dims, error)
       call h5dclose_f(dset_id, error)
-      !window = .5 - .5*cos( 2.0*pi*(t-1.) / (nTimes-1.) )
-      if(t.lt.10) then 
-        window = 0.5+0.5*tanh(t-5.)
-      elseif(t.gt.nTimes-10) then
-        window = 0.5-0.5*tanh(t-nTimes-5.)
-      else 
-        window=1
-      endif
+      window = 1. - cos( 2.0*pi*(t-1.) / (nTimes-1.) )
+      !tanh window
+      !if(t.lt.10) then 
+      !  window = 0.5+0.5*tanh(t-5.)
+      !elseif(t.gt.nTimes-10) then
+      !  window = 0.5-0.5*tanh(t-nTimes-5.)
+      !else 
+      !  window=1
+      !endif
       do k=1,n
         do j=1,n
           do i=1,n
