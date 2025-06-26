@@ -1,28 +1,28 @@
 program spectrum
 use hdf5
 use, intrinsic :: iso_c_binding
-use mpi
+!use mpi
 implicit none
 include 'fftw3.f03'
-integer, parameter :: startTime=19, nTimes=10, n=256
+integer, parameter :: startTime=19, nTimes=100, n=256
 integer, parameter :: kAlias=int((2.0/3.0)* (n/2))
 real, parameter :: pi=3.14159265358979, dx=1.0, l=n*dx
 logical :: fileExists
-character(len=200) :: filename, runName, weName='we_05/', inDir, outDir='../we_05/', fileEnd, str
+character(len=200) :: filename, runName, weName='we_05/', inDir, outDir='../we_05tanhWindow/', fileEnd, str
 integer :: i,j,k,t,im,jm,km,tm,error,intR,ntask,rank
 integer :: ios,dirU,specU,forcU,fPosU,fNegU,fImaU
 integer(hid_t) :: file_id, dset_id
 integer(hsize_t) :: dims(3)=(/n,n,n/),  dims1d(1)=(/1/) 
-real :: Cn,r,time,We,res,weight,wavNum(3)
+real :: Cn,r,time,We,res,weight,wavNum(3),window
 real, dimension(n,n,n) :: phase,dxxPhase,cPot,dxCPot,dyCPot,dzCPot
 real, dimension(0:kAlias,0:nTimes/2) :: FSpec,ESpec,FSpecPos,FSpecNeg,FImag
 complex, dimension(n/2+1,n,n) :: cH,cPotH,dxCPotH,dyCPotH,dzCPotH
 complex, dimension(n,n,n,nTimes) :: u,v,w,suX,suY,suZ
 complex :: surPow
 type(C_PTR)  :: plan, plan_inverse, plan4
-call mpi_init(error)
-call mpi_comm_rank(mpi_comm_world,rank,error)
-call mpi_comm_size(mpi_comm_world,ntask,error)
+!call mpi_init(error)
+!call mpi_comm_rank(mpi_comm_world,rank,error)
+!call mpi_comm_size(mpi_comm_world,ntask,error)
 plan        =fftwf_plan_dft_r2c_3d(n, n, n, phase, cH, FFTW_ESTIMATE)
 plan_inverse=fftwf_plan_dft_c2r_3d(n, n, n, cH, phase, FFTW_ESTIMATE)
 plan4       =fftwf_plan_dft(4, [nTimes, n, n, n], u, u, 1, FFTW_ESTIMATE)
@@ -32,7 +32,7 @@ open(newunit=dirU, file=trim(outDir)//'dir_list.txt', status='old', action='read
 do
   read(dirU, '(A)', iostat=ios) runName
   if (ios /= 0) exit
-  if (trim(runName).ne.'run_break_002') cycle
+  !if (trim(runName).ne.'run_break_002') cycle
   inDir='/home/alberto.velamartin/drop_time/'//trim(weName)//trim(runName)
   write(*,*) trim(inDir)
   write(str,'(i3.3)') startTime+nTimes-1
@@ -44,7 +44,7 @@ do
     write(*,*) trim(filename)
     flush(6)
     ! Open the file (read-only)
-    call mpi_barrier(mpi_comm_world,error)
+    !call mpi_barrier(mpi_comm_world,error)
     !write(*,*)'ntastk',ntask,'rank',rank
     call h5open_f(error)
     call h5fopen_f(filename, H5F_ACC_RDONLY_F, file_id, error)
@@ -74,10 +74,18 @@ do
       call h5dopen_f(file_id, 'u', dset_id, error)
         call h5dread_f(dset_id, H5T_NATIVE_REAL, dxxPhase, dims, error)
       call h5dclose_f(dset_id, error)
+      !window = .5 - .5*cos( 2.0*pi*(t-1.) / (nTimes-1.) )
+      if(t.lt.10) then 
+        window = 0.5+0.5*tanh(t-5.)
+      elseif(t.gt.nTimes-10) then
+        window = 0.5-0.5*tanh(t-nTimes-5.)
+      else 
+        window=1
+      endif
       do k=1,n
         do j=1,n
           do i=1,n
-            u(i,j,k,t) = dxxPhase(k,j,i)
+            u(i,j,k,t) = dxxPhase(k,j,i)*window
           enddo
         enddo
       enddo
@@ -87,7 +95,7 @@ do
       do k=1,n
         do j=1,n
           do i=1,n
-            v(i,j,k,t) = dxxPhase(k,j,i)
+            v(i,j,k,t) = dxxPhase(k,j,i)*window
           enddo
         enddo
       enddo
@@ -98,7 +106,7 @@ do
     do k=1,n
       do j=1,n
         do i=1,n
-          w(i,j,k,t) = dxxPhase(k,j,i)
+          w(i,j,k,t) = dxxPhase(k,j,i)*window
         enddo
       enddo
     enddo
@@ -145,9 +153,9 @@ do
     call fftwf_execute_dft_c2r(plan_inverse, dxCPotH, dxCPot)
     call fftwf_execute_dft_c2r(plan_inverse, dyCPotH, dyCPot)
     call fftwf_execute_dft_c2r(plan_inverse, dzCPotH, dzCPot)
-    suX(:,:,:,t) = phase(:,:,:) * dxCPot(:,:,:)
-    suY(:,:,:,t) = phase(:,:,:) * dyCPot(:,:,:)
-    suZ(:,:,:,t) = phase(:,:,:) * dzCPot(:,:,:)
+    suX(:,:,:,t) = phase(:,:,:) * dxCPot(:,:,:)*window
+    suY(:,:,:,t) = phase(:,:,:) * dyCPot(:,:,:)*window
+    suZ(:,:,:,t) = phase(:,:,:) * dzCPot(:,:,:)*window
   enddo
   write(*,*) 'fft u'
   call fftwf_execute_dft(plan4, u, u)
@@ -232,6 +240,6 @@ call fftw_destroy_plan(plan4)
 call fftw_cleanup()
 call system('rm '//trim(outDir)//'dir_list.txt')
 write(6,*) 'This is the end'
-call mpi_finalize(error)
+!call mpi_finalize(error)
 return
 end program spectrum
