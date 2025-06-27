@@ -5,17 +5,29 @@ real, dimension(3), parameter :: dx = (/1.0,1.0,1.0/), l = nt*dx
 real, parameter :: pi=3.14159265358979
 contains
 
-subroutine velGradBox(realPos,rad,vel,dVeldxBox,ReStressBox)
+subroutine avgVelGAndReStress(jj,vF,vB,width,nVels,dVeldx,ReStress)
+integer, intent(in) :: jj
+real, intent(in) :: vF(3), vB(3), width
+real, intent(inout), dimension(3,3) :: dVeldx, ReStress
+integer, intent(inout) :: nVels
+real :: vec(3)
+nVels=nVels+1
+vec(:) = ( vF(:) - vB(:) ) / width
+dVeldx(:,jj) = dVeldx(:,jj) + ( vec(:) - dVeldx(:,jj) ) / nVels
+vec = ( vF(:)*vF(jj) - vB(:)*vB(jj) ) / width
+ReStress(:,jj) = ReStress(:,jj) + ( vec(:) - ReStress(:,jj) ) / nVels
+end subroutine avgVelGAndReStress
+
+subroutine velGBox(realPos,rad,vel,dVeldx,ReStress)
 real, intent(in) :: realPos(3), rad
 real, intent(in), dimension(3,nt(1),nt(2),nt(3)) :: vel
-real, intent(out), dimension(3,3) :: dVeldxBox, ReStressBox
+real, intent(out), dimension(3,3) :: dVeldx, ReStress
 integer :: boxWid, pos(3)
 integer :: i,j,k,jj,ip,jp,kp,im,jm,km,nVels
-real :: dVeldx(3)
 boxWid=nint(rad/dx(3))
 pos=nint(realPos/dx)
-dVeldxBox=0.0
-ReStressBox=0.0
+dVeldx=0.0
+ReStress=0.0
 jj=1
 ip = pos(1) + boxWid
 ip = modulo(ip-1, nt(jj)) + 1
@@ -26,11 +38,7 @@ do k = pos(3)-boxWid, pos(3)+boxWid
   kp = modulo(k-1, nt(3)) + 1
   do j = pos(2)-boxWid, pos(2)+boxWid
     jp = modulo(j-1, nt(2)) + 1
-    nVels = nVels + 1
-    dVeldx(:) = (vel(:,ip,jp,kp) - vel(:,im,jp,kp)) / dx(jj) / boxWid / 2.0
-    dVeldxBox(:,jj) = dVeldxBox(:,jj) + ( dVeldx(:) - dVeldxBox(:,jj) ) / nVels
-    dVeldx(:) = ( vel(:,ip,jp,kp) * vel(jj,ip,jp,kp) - vel(:,im,jp,kp) * vel(jj,im,jp,kp) ) / dx(jj) / boxWid / 2.0
-    ReStressBox(:,jj) = ReStressBox(:,jj) + ( dVeldx(:) - ReStressBox(:,jj) ) / nVels
+    call avgVelGAndReStress(jj, vel(:,ip,jp,kp), vel(:,im,jp,kp), 2.0*boxWid*dx(jj), nVels, dVeldx, ReStress)
   enddo
 enddo
 jj=2
@@ -43,11 +51,7 @@ do k = pos(3)-boxWid, pos(3)+boxWid
   kp = modulo(k-1, nt(3)) + 1
   do i = pos(1)-boxWid, pos(1)+boxWid
     ip = modulo(i-1, nt(1)) + 1
-    nVels = nVels + 1
-    dVeldx(:) = (vel(:,ip,jp,kp) - vel(:,ip,jm,kp)) / dx(jj) / boxWid / 2.0
-    dVeldxBox(:,jj) = dVeldxBox(:,jj) + ( dVeldx(:) - dVeldxBox(:,jj) ) / nVels
-    dVeldx(:) = ( vel(:,ip,jp,kp) * vel(jj,ip,jp,kp) - vel(:,ip,jm,kp) * vel(jj,ip,jm,kp) ) / dx(jj) / boxWid / 2.0
-    ReStressBox(:,jj) = ReStressBox(:,jj) + ( dVeldx(:) - ReStressBox(:,jj) ) / nVels
+    call avgVelGAndReStress(jj, vel(:,ip,jp,kp), vel(:,ip,jm,kp), 2.0*boxWid*dx(jj), nVels, dVeldx, ReStress)
   enddo
 enddo
 jj=3
@@ -60,16 +64,12 @@ do j = pos(2)-boxWid, pos(2)+boxWid
   jp = modulo(j-1, nt(2)) + 1
   do i = pos(1)-boxWid, pos(1)+boxWid
     ip = modulo(i-1, nt(1)) + 1
-    nVels = nVels + 1
-    dVeldx(:) = (vel(:,ip,jp,kp) - vel(:,ip,jp,km)) / dx(jj) / boxWid / 2.0
-    dVeldxBox(:,jj) = dVeldxBox(:,jj) + ( dVeldx(:) - dVeldxBox(:,jj) ) / nVels
-    dVeldx(:) = ( vel(:,ip,jp,kp) * vel(jj,ip,jp,kp) - vel(:,ip,jp,km) * vel(jj,ip,jp,km) ) / dx(jj) / boxWid / 2.0
-    ReStressBox(:,jj) = ReStressBox(:,jj) + ( dVeldx(:) - ReStressBox(:,jj) ) / nVels
+    call avgVelGAndReStress(jj, vel(:,ip,jp,kp), vel(:,ip,jp,km), 2.0*boxWid*dx(jj), nVels, dVeldx, ReStress)
   enddo
 enddo
-end subroutine velGradBox
+end subroutine velGBox
 
-subroutine velGradModes(pos,rad,uHat,vHat,wHat,dVeldx,ReStress)
+subroutine velGModes(pos,rad,uHat,vHat,wHat,dVeldx,ReStress)
 real, intent(in) :: pos(3), rad
 complex, intent(in), dimension(nt(1)/2+1,nt(2),nt(3)) :: uHat,vHat,wHat
 real, intent(out), dimension(3,3) :: dVeldx, ReStress
@@ -103,15 +103,14 @@ do k=1,nt(3)
     enddo
   enddo
 enddo
-end subroutine velGradModes
+end subroutine velGModes
 
-subroutine velGradBlob(blob,vel,dVeldxTot,ReStress)
+subroutine velGBlob(blob,vel,dVeldx,ReStress)
 integer, intent(in), dimension(nt(1),nt(2),nt(3)) :: blob
 real, intent(in), dimension(3,nt(1),nt(2),nt(3)) :: vel
-real, intent(out), dimension(3,3) :: dVeldxTot, ReStress
+real, intent(out), dimension(3,3) :: dVeldx, ReStress
 integer :: i,j,k,p,nVels,firs0,last0,jj
-real :: dVeldx(3), width
-dVeldxTot=0.0
+dVeldx=0.0
 ReStress=0.0
 jj=1
 nVels = 0
@@ -123,10 +122,7 @@ do k=1,nt(3)
         do p=1,nt(1)
           firs0=modulo( last0+p-1, nt(jj)) + 1
           if(blob(firs0,j,k).eq.0) then
-            width = p*dx(jj)
-            nVels = nVels + 1
-            dVeldx(:) = (vel(:,firs0,j,k) - vel(:,last0,j,k)) / width
-            dVeldxTot(:,jj) = dVeldxTot(:,jj) + ( dVeldx(:) - dVeldxTot(:,jj) ) / nVels
+            call avgVelGAndReStress(jj, vel(:,firs0,j,k), vel(:,last0,j,k), p*dx(jj), nVels, dVeldx, ReStress)
             exit
           endif
         enddo
@@ -134,7 +130,6 @@ do k=1,nt(3)
     enddo
   enddo
 enddo
-write(*,*)'139nVels',nVels
 jj=2
 nVels = 0
 do k=1,nt(3)
@@ -145,10 +140,7 @@ do k=1,nt(3)
         do p=1,nt(jj)
           firs0 = modulo( last0+p-1, nt(jj) ) + 1 
           if(blob(i,firs0,k).eq.0) then
-            width = p*dx(jj)
-            nVels = nVels + 1
-            dVeldx(:) = (vel(:,i,firs0,k) - vel(:,i,last0,k)) / width
-            dVeldxTot(:,jj) = dVeldxTot(:,jj) + ( dVeldx(:) - dVeldxTot(:,jj) ) / nVels
+            call avgVelGAndReStress(jj, vel(:,i,firs0,k), vel(:,i,last0,k), p*dx(jj), nVels, dVeldx, ReStress)
             exit
           endif
         enddo
@@ -156,7 +148,6 @@ do k=1,nt(3)
     enddo
   enddo
 enddo
-write(*,*)'161nVels',nVels
 jj=3
 nVels = 0
 do j=1,nt(2)
@@ -167,10 +158,7 @@ do j=1,nt(2)
         do p=1,nt(jj)
           firs0 = modulo( last0+p-1, nt(jj) ) + 1 
           if(blob(i,j,firs0).eq.0) then
-            width = p*dx(jj)
-            nVels = nVels + 1
-            dVeldx(:) = (vel(:,i,j,firs0) - vel(:,i,j,last0)) / width
-            dVeldxTot(:,jj) = dVeldxTot(:,jj) + ( dVeldx(:) - dVeldxTot(:,jj) ) / nVels
+            call avgVelGAndReStress(jj, vel(:,i,j,firs0), vel(:,i,j,last0), p*dx(jj), nVels, dVeldx, ReStress)
             exit
           endif
         enddo
@@ -178,78 +166,7 @@ do j=1,nt(2)
     enddo
   enddo
 enddo
-write(*,*)'187nVels',nVels
-end subroutine velGradBlob
-
-subroutine velGradConvexBlob(blob,vel,dVeldxTot)
-integer, intent(in), dimension(nt(1),nt(2),nt(3)) :: blob
-real, intent(in), dimension(3,nt(1),nt(2),nt(3)) :: vel
-real, intent(out), dimension(3,3) :: dVeldxTot
-integer :: i,j,k,p,nVels,firs0,last0
-real :: dVeldx(3), width
-dVeldxTot=0.0
-nVels = 0
-do k=1,nt(3)
-  do j=1,nt(2)
-    firs0=0
-    last0=0
-    do i=1,nt(1)
-      p=i+1
-      if(p.gt.nt(1)) p=p-nt(1)
-      if(blob(i,j,k).ne.0.and.blob(p,j,k).eq.0) firs0=p
-      if(blob(i,j,k).eq.0.and.blob(p,j,k).ne.0) last0=i
-    enddo
-    if (last0.ne.0) then
-      width = (firs0 - last0)*dx(1)
-      if (width.lt.0.0) width = width + l(1)
-      nVels = nVels + 1
-      dVeldx(:) = (vel(:,firs0,j,k) - vel(:,last0,j,k)) / width
-      dVeldxTot(:,1) = dVeldxTot(:,1) + ( dVeldx(:) - dVeldxTot(:,1) ) / nVels
-    endif
-  enddo
-enddo
-nVels = 0
-do k=1,nt(3)
-  do i=1,nt(1)
-    firs0=0
-    last0=0
-    do j=1,nt(2)
-      p=j+1
-      if(p.gt.nt(2)) p=p-nt(2)
-      if(blob(i,j,k).ne.0.and.blob(i,p,k).eq.0) firs0=p
-      if(blob(i,j,k).eq.0.and.blob(i,p,k).ne.0) last0=j
-    enddo
-    if (last0.ne.0) then
-      width = (firs0 - last0)*dx(2)
-      if (width.lt.0.0) width = width + l(2)
-      nVels = nVels + 1
-      dVeldx(:) = (vel(:,i,firs0,k) - vel(:,i,last0,k)) / width
-      dVeldxTot(:,2) = dVeldxTot(:,2) + ( dVeldx(:) - dVeldxTot(:,2) ) / nVels
-    endif
-  enddo
-enddo
-nVels = 0
-do j=1,nt(2)
-  do i=1,nt(1)
-    firs0=0
-    last0=0
-    do k=1,nt(3)
-      p=k+1
-      if(p.gt.nt(3)) p=p-nt(3)
-      if(blob(i,j,k).ne.0.and.blob(i,j,p).eq.0) firs0=p
-      if(blob(i,j,k).eq.0.and.blob(i,j,p).ne.0) last0=k
-    enddo
-    if (last0.ne.0) then
-      width = (firs0 - last0)*dx(3)
-      if (width.lt.0.0) width = width + l(3)
-      nVels = nVels + 1
-      dVeldx(:) = (vel(:,i,j,firs0) - vel(:,i,j,last0)) / width
-      dVeldxTot(:,3) = dVeldxTot(:,3) + ( dVeldx(:) - dVeldxTot(:,3) ) / nVels
-    endif
-  enddo
-enddo
-end subroutine velGradConvexBlob
-
+end subroutine velGBlob
 
 subroutine saveStrain(outDir,domain,time,dVeldx,ReStress)
 character(*), intent(in) :: outDir, domain
@@ -321,5 +238,47 @@ do k=1,nt(3)
   enddo
 enddo
 end subroutine makeSphere
+
+subroutine makeEllipse(realPos,MoI,MoIEiVals,dropVol,ellipse)
+!make a mask of the ellipse with same moment of inertia as drop
+real, intent(in) :: realPos(3), MoI(3,3), MoIEiVals(3), dropVol
+integer, intent(out) :: ellipse(nt(1),nt(2),nt(3))
+integer :: i,j,k,ii,jj,pos(3),sep(3)
+real :: ellMat(3,3)=0.0, rad
+do i=1,3
+  do j=1,3
+    do k=1,3
+      ellMat(i,j) = ellMat(i,j) + MoI(i,k) * MoI(j,k) * dropVol/5. / (0.5*sum(MoIEiVals) - MoIEiVals(k))
+    enddo
+  enddo
+enddo
+pos=nint(realPos/dx)
+do k=1,nt(3)
+  sep(3) = pos(3) - k
+  if (sep(3).gt. nt(3)/2) sep(3) = sep(3) - nt(3) 
+  if (sep(3).lt.-nt(3)/2) sep(3) = sep(3) + nt(3) 
+  do j=1,nt(2)
+    sep(2) = pos(2) - j
+    if (sep(2).gt. nt(2)/2) sep(2) = sep(2) - nt(2) 
+    if (sep(2).lt.-nt(2)/2) sep(2) = sep(2) + nt(2) 
+    do i=1,nt(1)
+      sep(1) = pos(1) - i
+      if (sep(1).gt. nt(1)/2) sep(1) = sep(1) - nt(1) 
+      if (sep(1).lt.-nt(1)/2) sep(1) = sep(1) + nt(1) 
+      rad=0.0
+      do ii=1,3
+        do jj=1,3
+          rad = rad + sep(ii)*ellMat(ii,jj)*sep(jj)
+        enddo
+      enddo
+      if(rad.lt.1) then
+        ellipse(i,j,k) = 1
+      else
+        ellipse(i,j,k) = 0
+      endif
+    enddo
+  enddo
+enddo
+end subroutine makeEllipse
 
 end module modVelGrad

@@ -4,7 +4,7 @@ use hdf5
 use, intrinsic :: iso_c_binding
 use mpi
 use modVelGrad, only : nt,l,dx,pi
-use modVelGrad, only : velGradBox,velGradBlob,velGradConvexBlob,velGradModes,saveStrain,makeSphere
+use modVelGrad, only : velGBox,velGBlob,velGModes,saveStrain,makeSphere,makeEllipse
 implicit none
 include 'fftw3.f03'
 type ragged_array
@@ -13,12 +13,12 @@ type ragged_array
   character(len=12) :: indexName
 end type ragged_array
 integer,parameter :: maxMom=2
-character(len=200) :: filename, runName, weName='we_05/', inDir, outDir, fileEnd, str
+character(len=200) :: filename, runName, weName='we_10/', inDir, outDir, fileEnd, str
 integer :: i,j,k,ip,jp,kp,iq,jq,kq,iShifted,mom,ii,jj,im,jm,km
 integer :: cols,paintIt,faceOnCorner,genus,onInt,error,ios,rank,ntask
 integer :: statU,posiU,veloU,MoInU,topoU,dirU,listU
 integer :: runNum,dropSize,faces,edges,vertices
-integer, dimension(nt(1),nt(2),nt(3)) :: drop
+integer, dimension(nt(1),nt(2),nt(3)) :: drop!,dropTemp
 integer, dimension(0:1,0:1,0:1) :: paint, neigh
 integer, dimension(3)  :: last0,last1,pos
 integer(hid_t) :: file_id, dset_id
@@ -54,16 +54,16 @@ do
   if (ios /= 0) exit
   str = trim( runName(11:) )
   read( str , *) runNum
-  !if ( modulo( runNum, ntask ) .ne. rank) cycle
-  if ( runNum .ne. 0) cycle
+  if ( modulo( runNum, ntask ) .ne. rank) cycle
+  !if ( runNum .ne. 0) cycle
   inDir='/home/alberto.velamartin/drop_time/'//trim(weName)//trim(runName)
-  !outDir='../'//trim(weName)//trim(runName)
-  outDir='output/'
+  outDir='../'//trim(weName)//trim(runName)
+  !outDir='output/'
   call system('mkdir '//trim(outDir))
-  call system('ls '//trim(inDir)//'/field*.h5 > '//trim(outDir)//'/file_list.txt')
-  !call system('ls '//trim(inDir)//'/field.008.h5 > '//trim(outDir)//'/file_list.txt')
+  !call system('ls '//trim(inDir)//'/field*.h5 > '//trim(outDir)//'/file_list.txt')
+  call system('ls '//trim(inDir)//'/field.008.h5 > '//trim(outDir)//'/file_list.txt')
   fileEnd='.txt'
-  open(newunit=statU,file=trim(outDir)//'/statDrops'//trim(fileEnd), access='append',form='formatted',status='REPLACE')
+  open(newunit=statU,file=trim(outDir)//'/statDrops'//trim(fileEnd),access='append',form='formatted',status='REPLACE')
   open(newunit=posiU,file=trim(outDir)//'/posiDrops'//trim(fileEnd),access='append',form='formatted',status='REPLACE')
   open(newunit=veloU,file=trim(outDir)//'/veloDrops'//trim(fileEnd),access='append',form='formatted',status='REPLACE')
   open(newunit=MoInU,file=trim(outDir)//'/MoInDrops'//trim(fileEnd),access='append',form='formatted',status='REPLACE')
@@ -168,6 +168,11 @@ do
         enddo
       enddo
     enddo
+      !write(veloU,'(256ES16.7E3)') drop(:,k,100)*1.
+    !call makeSphere((/100.,100.,100./),10.,drop)
+    !call makeSphere((/130.,120.,100./),10.,dropTemp)
+    !drop=drop+dropTemp
+    !dropSize=sum(drop)
     do k=1,nt(3)
       do j=1,nt(2)
         do i=1,nt(1)
@@ -446,39 +451,36 @@ do
       farPos(ii) = dropPos(ii) + 0.5*l(ii)
       if (farPos(ii).gt.l(ii)) farPos(ii) = farPos(ii) - l(ii)
     enddo
-    !do k=1,250
-    !  write(vortU,'(256ES16.7E3)') u(:,k,100)
-    !enddo
     call fftwf_execute_dft_r2c(plan, u, uHat)
     call fftwf_execute_dft_r2c(plan, v, vHat)
     call fftwf_execute_dft_r2c(plan, w, wHat)
-    write(*,*) 'drop',sum(1.*drop)/(1.*nt(1))**3
-    call velGradConvexBlob(drop,vel,dVeldx)
-    call saveStrain(outDir,'ConvexDrop',time,dVeldx,ReStress)
-    call velGradBlob(drop,vel,dVeldx,ReStress)
+    call velGBlob(drop,vel,dVeldx,ReStress)
     call saveStrain(outDir,'Drop',time,dVeldx,ReStress)
-    !do i=1,5
-    i=4
+    !do k=1,250
+    !  write(veloU,'(256ES16.7E3)') drop(:,k,100)*1.
+    !enddo
+    !write(*,*) 'drop',sum(1.*drop)/(1.*nt(1))**3
+    call makeEllipse(dropPos, MoI, MoIEiVals, dropSize*dx(1)*dx(2)*dx(3), drop)
+    call velGBlob(drop,vel,dVeldx,ReStress)
+    call saveStrain(outDir,'Ellipse',time,dVeldx,ReStress)
+    do i=1,5
       r=l(3)/12.*i
       write(filename,'(i3.3)') nint(r)
-      call velGradBox(dropPos,r,vel,dVeldx,ReStress)
+      call velGBox(dropPos,r,vel,dVeldx,ReStress)
       call saveStrain(outDir,'BoxR'//trim(filename),time,dVeldx,ReStress)
-      call velGradBox(farPos,r,vel,dVeldx,ReStress)
+      call velGBox(farPos,r,vel,dVeldx,ReStress)
       call saveStrain(outDir,'FarBoxR'//trim(filename),time,dVeldx,ReStress)
       call makeSphere(dropPos,r,drop)
-      write(*,*) 'sphere',sum(1.*drop)/(1.*nt(1))**3
-      call velGradBlob(drop,vel,dVeldx,ReStress)
+      call velGBlob(drop,vel,dVeldx,ReStress)
       call saveStrain(outDir,'SphereR'//trim(filename),time,dVeldx,ReStress)
-      call velGradConvexBlob(drop,vel,dVeldx)
-      call saveStrain(outDir,'ConvexSphereR'//trim(filename),time,dVeldx,ReStress)
       call makeSphere(farPos,r,drop)
-      !call velGradBlob(drop,vel,dVeldx,ReStress)
-      !call saveStrain(outDir,'FarSphereR'//trim(filename),time,dVeldx,ReStress)
-      !call velGradModes(dropPos,r,uHat,vHat,wHat,dVeldx,ReStress)
+      call velGBlob(drop,vel,dVeldx,ReStress)
+      call saveStrain(outDir,'FarSphereR'//trim(filename),time,dVeldx,ReStress)
+      call velGModes(dropPos,r,uHat,vHat,wHat,dVeldx,ReStress)
       call saveStrain(outDir,'Modes'//trim(filename),time,dVeldx,ReStress)
-      call velGradModes(farPos,r,uHat,vHat,wHat,dVeldx,ReStress)
+      call velGModes(farPos,r,uHat,vHat,wHat,dVeldx,ReStress)
       call saveStrain(outDir,'FarModesR'//trim(filename),time,dVeldx,ReStress)
-    !enddo
+    enddo
     write(statU,'(ES16.7E3,i16,4ES16.7E3,6i16,2ES16.7E3)') time,dropSize,dropArea,deformation,kurMean,kurStdDev,&
           last0(:),last1(:),kurInv,kurInvSq
     flush(statU)
@@ -486,11 +488,11 @@ do
     write(posiU,'(4ES16.7E3)') time, dropPos
     flush(posiU)
     write(str,'(a,i0,a)') '(',1+maxMom*3,'(ES16.7E3))'
-    write(veloU,str) time, (dropVel(mom,:),mom=1,maxMom)
+    !write(veloU,str) time, (dropVel(mom,:),mom=1,maxMom)
     flush(veloU)
     write(MoInU,'(13ES16.7E3)') time, MoIEiVals, MoI
     flush(MoInU)
-    write(topoU,'(ES16.7E3, 4i16)') time,vertices,edges,faces,genus
+    !write(topoU,'(ES16.7E3, 4i16)') time,vertices,edges,faces,genus
     flush(topoU)
   enddo
   close(posiU,status='keep')
