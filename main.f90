@@ -8,7 +8,7 @@ integer, parameter :: startTime=19, nTimes=100, n=256
 integer, parameter :: kAlias=int((2.0/3.0)* (n/2))
 real, parameter :: pi=3.14159265358979, dx=1.0, l=n*dx
 logical :: fileExists
-character(len=200) :: filename, runName, weName='we_05/', inDir, outDir='../we_05tanhWindow/', fileEnd, str
+character(len=200) :: filename, runName, weName='we_10/', inDir, outDir='../we_10/', fileEnd, str
 integer :: i,j,k,t,im,jm,km,tm,error,intR,ntask,rank
 integer :: ios,dirU,specU,forcU,fPosU,fNegU,fImaU
 integer(hid_t) :: file_id, dset_id
