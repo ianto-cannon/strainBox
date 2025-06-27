@@ -3,7 +3,8 @@ use hdf5
 !use, intrinsic :: ISO_FORTRAN_ENV
 use, intrinsic :: iso_c_binding
 use mpi
-use modVelGrad, only : velGradBox,velGradBlob,velGradModes,saveStrain,makeSphere,nt,l,dx,pi
+use modVelGrad, only : nt,l,dx,pi
+use modVelGrad, only : velGradBox,velGradBlob,velGradConvexBlob,velGradModes,saveStrain,makeSphere
 implicit none
 include 'fftw3.f03'
 type ragged_array
@@ -452,6 +453,8 @@ do
     call fftwf_execute_dft_r2c(plan, v, vHat)
     call fftwf_execute_dft_r2c(plan, w, wHat)
     write(*,*) 'drop',sum(1.*drop)/(1.*nt(1))**3
+    call velGradConvexBlob(drop,vel,dVeldx)
+    call saveStrain(outDir,'ConvexDrop',time,dVeldx,ReStress)
     call velGradBlob(drop,vel,dVeldx,ReStress)
     call saveStrain(outDir,'Drop',time,dVeldx,ReStress)
     !do i=1,5
@@ -466,6 +469,8 @@ do
       write(*,*) 'sphere',sum(1.*drop)/(1.*nt(1))**3
       call velGradBlob(drop,vel,dVeldx,ReStress)
       call saveStrain(outDir,'SphereR'//trim(filename),time,dVeldx,ReStress)
+      call velGradConvexBlob(drop,vel,dVeldx)
+      call saveStrain(outDir,'ConvexSphereR'//trim(filename),time,dVeldx,ReStress)
       call makeSphere(farPos,r,drop)
       !call velGradBlob(drop,vel,dVeldx,ReStress)
       !call saveStrain(outDir,'FarSphereR'//trim(filename),time,dVeldx,ReStress)
