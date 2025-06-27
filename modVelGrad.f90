@@ -15,6 +15,7 @@ real :: dVeldx(3)
 boxWid=nint(rad/dx(3))
 pos=nint(realPos/dx)
 dVeldxBox=0.0
+ReStressBox=0.0
 jj=1
 ip = pos(1) + boxWid
 ip = modulo(ip-1, nt(jj)) + 1
@@ -26,9 +27,9 @@ do k = pos(3)-boxWid, pos(3)+boxWid
   do j = pos(2)-boxWid, pos(2)+boxWid
     jp = modulo(j-1, nt(2)) + 1
     nVels = nVels + 1
-    dVeldx(:) = (vel(:,ip,jp,kp) - vel(:,im,jp,kp)) / dx(jj) / boxWid
+    dVeldx(:) = (vel(:,ip,jp,kp) - vel(:,im,jp,kp)) / dx(jj) / boxWid / 2.0
     dVeldxBox(:,jj) = dVeldxBox(:,jj) + ( dVeldx(:) - dVeldxBox(:,jj) ) / nVels
-    dVeldx(:) = ( vel(:,ip,jp,kp) * vel(jj,ip,jp,kp) - vel(:,im,jp,kp) * vel(jj,im,jp,kp) ) / dx(jj) / boxWid
+    dVeldx(:) = ( vel(:,ip,jp,kp) * vel(jj,ip,jp,kp) - vel(:,im,jp,kp) * vel(jj,im,jp,kp) ) / dx(jj) / boxWid / 2.0
     ReStressBox(:,jj) = ReStressBox(:,jj) + ( dVeldx(:) - ReStressBox(:,jj) ) / nVels
   enddo
 enddo
@@ -43,9 +44,9 @@ do k = pos(3)-boxWid, pos(3)+boxWid
   do i = pos(1)-boxWid, pos(1)+boxWid
     ip = modulo(i-1, nt(1)) + 1
     nVels = nVels + 1
-    dVeldx(:) = (vel(:,ip,jp,kp) - vel(:,ip,jm,kp)) / dx(jj) / boxWid
+    dVeldx(:) = (vel(:,ip,jp,kp) - vel(:,ip,jm,kp)) / dx(jj) / boxWid / 2.0
     dVeldxBox(:,jj) = dVeldxBox(:,jj) + ( dVeldx(:) - dVeldxBox(:,jj) ) / nVels
-    dVeldx(:) = ( vel(:,ip,jp,kp) * vel(jj,ip,jp,kp) - vel(:,ip,jm,kp) * vel(jj,ip,jm,kp) ) / dx(jj) / boxWid
+    dVeldx(:) = ( vel(:,ip,jp,kp) * vel(jj,ip,jp,kp) - vel(:,ip,jm,kp) * vel(jj,ip,jm,kp) ) / dx(jj) / boxWid / 2.0
     ReStressBox(:,jj) = ReStressBox(:,jj) + ( dVeldx(:) - ReStressBox(:,jj) ) / nVels
   enddo
 enddo
@@ -60,9 +61,9 @@ do j = pos(2)-boxWid, pos(2)+boxWid
   do i = pos(1)-boxWid, pos(1)+boxWid
     ip = modulo(i-1, nt(1)) + 1
     nVels = nVels + 1
-    dVeldx(:) = (vel(:,ip,jp,kp) - vel(:,ip,jp,km)) / dx(jj) / boxWid
+    dVeldx(:) = (vel(:,ip,jp,kp) - vel(:,ip,jp,km)) / dx(jj) / boxWid / 2.0
     dVeldxBox(:,jj) = dVeldxBox(:,jj) + ( dVeldx(:) - dVeldxBox(:,jj) ) / nVels
-    dVeldx(:) = ( vel(:,ip,jp,kp) * vel(jj,ip,jp,kp) - vel(:,ip,jp,km) * vel(jj,ip,jp,km) ) / dx(jj) / boxWid
+    dVeldx(:) = ( vel(:,ip,jp,kp) * vel(jj,ip,jp,kp) - vel(:,ip,jp,km) * vel(jj,ip,jp,km) ) / dx(jj) / boxWid / 2.0
     ReStressBox(:,jj) = ReStressBox(:,jj) + ( dVeldx(:) - ReStressBox(:,jj) ) / nVels
   enddo
 enddo
@@ -76,6 +77,7 @@ integer :: i,j,k,ii,jm,km
 real :: wavNum(3), wav, weight
 complex :: eikdotx
 dVeldx=0.0
+ReStress=0.0
 do k=1,nt(3)
   km=k-1
   if (km.gt.nt(3)/2) km=km-nt(3)
@@ -107,25 +109,24 @@ subroutine velGradBlob(blob,vel,dVeldxTot,ReStress)
 integer, intent(in), dimension(nt(1),nt(2),nt(3)) :: blob
 real, intent(in), dimension(3,nt(1),nt(2),nt(3)) :: vel
 real, intent(out), dimension(3,3) :: dVeldxTot, ReStress
-integer :: i,j,k,p,nVels,firs0,last0
+integer :: i,j,k,p,nVels,firs0,last0,jj
 real :: dVeldx(3), width
 dVeldxTot=0.0
+ReStress=0.0
+jj=1
 nVels = 0
 do k=1,nt(3)
   do j=1,nt(2)
-    do i=1,nt(1)
-      p=i+1
-      if(p.gt.nt(1)) p=p-nt(1)
-      if(blob(i,j,k).eq.0.and.blob(p,j,k).ne.0) then
-        last0=i
+    do last0=1,nt(jj)
+      p = modulo( last0, nt(jj) ) + 1
+      if( blob(last0,j,k).eq.0 .and. blob(p,j,k).ne.0 ) then
         do p=1,nt(1)
-          firs0=i+p
-          if(firs0.gt.nt(1)) firs0=firs0-nt(1)
+          firs0=modulo( last0+p-1, nt(jj)) + 1
           if(blob(firs0,j,k).eq.0) then
-            width = p*dx(1)
+            width = p*dx(jj)
             nVels = nVels + 1
             dVeldx(:) = (vel(:,firs0,j,k) - vel(:,last0,j,k)) / width
-            dVeldxTot(:,1) = dVeldxTot(:,1) + ( dVeldx(:) - dVeldxTot(:,1) ) / nVels
+            dVeldxTot(:,jj) = dVeldxTot(:,jj) + ( dVeldx(:) - dVeldxTot(:,jj) ) / nVels
             exit
           endif
         enddo
@@ -133,22 +134,21 @@ do k=1,nt(3)
     enddo
   enddo
 enddo
+write(*,*)'139nVels',nVels
+jj=2
 nVels = 0
 do k=1,nt(3)
   do i=1,nt(1)
-    do j=1,nt(2)
-      p=j+1
-      if(p.gt.nt(2)) p=p-nt(2)
-      if(blob(i,j,k).eq.0.and.blob(i,p,k).ne.0) then
-        last0=j
-        do p=1,nt(2)
-          firs0=j+p
-          if(firs0.gt.nt(2)) firs0=firs0-nt(2)
+    do last0=1,nt(jj)
+      p = modulo( last0, nt(jj) ) + 1
+      if(blob(i,last0,k).eq.0 .and. blob(i,p,k).ne.0) then
+        do p=1,nt(jj)
+          firs0 = modulo( last0+p-1, nt(jj) ) + 1 
           if(blob(i,firs0,k).eq.0) then
-            width = p*dx(2)
+            width = p*dx(jj)
             nVels = nVels + 1
             dVeldx(:) = (vel(:,i,firs0,k) - vel(:,i,last0,k)) / width
-            dVeldxTot(:,2) = dVeldxTot(:,2) + ( dVeldx(:) - dVeldxTot(:,2) ) / nVels
+            dVeldxTot(:,jj) = dVeldxTot(:,jj) + ( dVeldx(:) - dVeldxTot(:,jj) ) / nVels
             exit
           endif
         enddo
@@ -156,22 +156,21 @@ do k=1,nt(3)
     enddo
   enddo
 enddo
+write(*,*)'161nVels',nVels
+jj=3
 nVels = 0
 do j=1,nt(2)
   do i=1,nt(1)
-    do k=1,nt(3)
-      p=k+1
-      if(p.gt.nt(3)) p=p-nt(3)
-      if(blob(i,j,k).eq.0.and.blob(i,j,p).ne.0) then
-        last0=k
-        do p=1,nt(3)
-          firs0=k+p
-          if(firs0.gt.nt(3)) firs0=firs0-nt(3)
+    do last0=1,nt(jj)
+      p = modulo( last0, nt(jj) ) + 1
+      if(blob(i,j,last0).eq.0 .and. blob(i,j,p).ne.0) then
+        do p=1,nt(jj)
+          firs0 = modulo( last0+p-1, nt(jj) ) + 1 
           if(blob(i,j,firs0).eq.0) then
-            width = p*dx(3)
+            width = p*dx(jj)
             nVels = nVels + 1
             dVeldx(:) = (vel(:,i,j,firs0) - vel(:,i,j,last0)) / width
-            dVeldxTot(:,3) = dVeldxTot(:,3) + ( dVeldx(:) - dVeldxTot(:,3) ) / nVels
+            dVeldxTot(:,jj) = dVeldxTot(:,jj) + ( dVeldx(:) - dVeldxTot(:,jj) ) / nVels
             exit
           endif
         enddo
@@ -179,6 +178,7 @@ do j=1,nt(2)
     enddo
   enddo
 enddo
+write(*,*)'187nVels',nVels
 end subroutine velGradBlob
 
 subroutine saveStrain(outDir,domain,time,dVeldx,ReStress)

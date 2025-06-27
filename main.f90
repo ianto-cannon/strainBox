@@ -11,31 +11,26 @@ type ragged_array
   real,allocatable::v(:)
   character(len=12) :: indexName
 end type ragged_array
-character(len=200) :: filename, runName, weName='we_05/', inDir, outDir
-real :: modnor
 integer,parameter :: maxMom=2
-real, dimension(nt(1),nt(2),nt(3)) :: kur,u,v,w,phase
-real, dimension(3,nt(1),nt(2),nt(3)) :: nor, vel
-!use int8 for non shared arrays to save memory
-integer, dimension(nt(1),nt(2),nt(3)) :: drop
-integer, dimension(0:1,0:1,0:1) :: paint, neigh
-integer, dimension(3)  :: last0,last1,pos
+character(len=200) :: filename, runName, weName='we_05/', inDir, outDir, fileEnd, str
 integer :: i,j,k,ip,jp,kp,iq,jq,kq,iShifted,mom,ii,jj,im,jm,km
 integer :: cols,paintIt,faceOnCorner,genus,onInt,error,ios,rank,ntask
 integer :: statU,posiU,veloU,MoInU,topoU,dirU,listU
-integer :: runNum
-real, dimension(maxMom,3) :: dropPos,dropVel
-real, dimension(3) :: MoIEiVals,farPos
-real, dimension(3,3) :: MoI, dVeldx, ReStress
-real :: diag,deformation,dropArea,dA,Cn,r,time,work(8),We,res
-real :: maxNor,kurMean,kurStdDev,kurInv,kurInvSq,invSize,sumSurPow
-type(ragged_array) :: hist(3) !histogram of drop mass in x, y and z directions
-!integer(kind=int64) :: dropSize, faces, edges, vertices
-integer :: dropSize, faces, edges, vertices
-character(len=200) :: fileEnd, str
+integer :: runNum,dropSize,faces,edges,vertices
+integer, dimension(nt(1),nt(2),nt(3)) :: drop
+integer, dimension(0:1,0:1,0:1) :: paint, neigh
+integer, dimension(3)  :: last0,last1,pos
 integer(hid_t) :: file_id, dset_id
 integer(hsize_t) :: dims(3)=(/nt(1),nt(2),nt(3)/),  dims1d(1)=(/1/) 
+real, dimension(maxMom,3) :: dropVel
+real, dimension(3) :: MoIEiVals,dropPos,farPos
+real, dimension(3,3) :: MoI, dVeldx, ReStress
+real, dimension(nt(1),nt(2),nt(3)) :: kur,u,v,w,phase
+real, dimension(3,nt(1),nt(2),nt(3)) :: nor, vel
+real :: diag,deformation,dropArea,dA,Cn,r,time,work(8),We,res
+real :: maxNor,kurMean,kurStdDev,kurInv,kurInvSq,invSize,modnor
 complex, dimension(nt(1)/2+1,nt(2),nt(3)) :: uHat,vHat,wHat
+type(ragged_array) :: hist(3) !histogram of drop mass in x, y and z directions
 type(C_PTR)  :: plan
 call mpi_init(error)
 call mpi_comm_rank(mpi_comm_world,rank,error)
@@ -64,8 +59,8 @@ do
   !outDir='../'//trim(weName)//trim(runName)
   outDir='output/'
   call system('mkdir '//trim(outDir))
-  !call system('ls '//trim(inDir)//'/field*.h5 > '//trim(outDir)//'/file_list.txt')
-  call system('ls '//trim(inDir)//'/field.008.h5 > '//trim(outDir)//'/file_list.txt')
+  call system('ls '//trim(inDir)//'/field*.h5 > '//trim(outDir)//'/file_list.txt')
+  !call system('ls '//trim(inDir)//'/field.008.h5 > '//trim(outDir)//'/file_list.txt')
   fileEnd='.txt'
   open(newunit=statU,file=trim(outDir)//'/statDrops'//trim(fileEnd), access='append',form='formatted',status='REPLACE')
   open(newunit=posiU,file=trim(outDir)//'/posiDrops'//trim(fileEnd),access='append',form='formatted',status='REPLACE')
@@ -241,9 +236,7 @@ do
       do i=1,nt(ii)
         iShifted = i
         if(last1(ii).lt.last0(ii).and.i.le.last1(ii)) iShifted = i+nt(ii)
-        do mom = 1,maxMom
-          dropPos(mom,ii) = dropPos(mom,ii) + hist(ii)%v(i)*(iShifted**mom)
-        enddo
+        dropPos(ii) = dropPos(ii) + hist(ii)%v(i)*iShifted
       enddo 
     enddo
     MoI=0.0
@@ -263,11 +256,11 @@ do
             !contribution from each cell
             diag=dx(1)**5*(1.0/6.0)
             do ii=1,3
-              diag = diag + ( pos(ii)-dropPos(1,ii) )**2 *dx(1)**5
+              diag = diag + ( pos(ii)-dropPos(ii) )**2 *dx(1)**5
             enddo
             do ii=1,3
               do jj=1,3
-                MoI(ii,jj) = MoI(ii,jj) - ( pos(ii)-dropPos(1,ii) )*( pos(jj)-dropPos(1,jj) )*dx(1)**5
+                MoI(ii,jj) = MoI(ii,jj) - ( pos(ii)-dropPos(ii) )*( pos(jj)-dropPos(jj) )*dx(1)**5
                 if(ii.eq.jj) MoI(ii,jj) = MoI(ii,jj) + diag
               enddo
             enddo
@@ -444,18 +437,12 @@ do
     endif
     do ii=1,3
       !move drop back inside domain
-      if(dropPos(1,ii).ge.nt(ii)+1) then
-        do mom=1,maxMom
-          dropPos(mom,ii)=dropPos(mom,ii)-nt(ii)**mom
-        enddo
-      endif
+      if(dropPos(ii).ge.nt(ii)+1) dropPos(ii)=dropPos(ii)-nt(ii)
       !integer coordinates of drop centre are used to make sphere and box
-      pos(ii) = nint(dropPos(1,ii))
+      pos(ii) = nint(dropPos(ii))
       !put in units of simulation domain size
-      do mom=1,maxMom
-        dropPos(mom,ii)=dropPos(mom,ii) * dx(ii)**mom
-      enddo
-      farPos(ii) = dropPos(1,ii) + 0.5*l(ii)
+      dropPos(ii)=dropPos(ii) * dx(ii)
+      farPos(ii) = dropPos(ii) + 0.5*l(ii)
       if (farPos(ii).gt.l(ii)) farPos(ii) = farPos(ii) - l(ii)
     enddo
     !do k=1,250
@@ -464,34 +451,36 @@ do
     call fftwf_execute_dft_r2c(plan, u, uHat)
     call fftwf_execute_dft_r2c(plan, v, vHat)
     call fftwf_execute_dft_r2c(plan, w, wHat)
+    write(*,*) 'drop',sum(1.*drop)/(1.*nt(1))**3
     call velGradBlob(drop,vel,dVeldx,ReStress)
     call saveStrain(outDir,'Drop',time,dVeldx,ReStress)
-    do i=1,5
+    !do i=1,5
+    i=4
       r=l(3)/12.*i
       write(filename,'(i3.3)') nint(r)
-      call velGradBox(dropPos(1,:),r,vel,dVeldx,ReStress)
+      call velGradBox(dropPos,r,vel,dVeldx,ReStress)
       call saveStrain(outDir,'BoxR'//trim(filename),time,dVeldx,ReStress)
       call velGradBox(farPos,r,vel,dVeldx,ReStress)
       call saveStrain(outDir,'FarBoxR'//trim(filename),time,dVeldx,ReStress)
-      call makeSphere(dropPos(1,:),r,drop)
-      !write(*,*) 'sphere',sum(1.*drop)/(1.*nt(1))**3
+      call makeSphere(dropPos,r,drop)
+      write(*,*) 'sphere',sum(1.*drop)/(1.*nt(1))**3
       call velGradBlob(drop,vel,dVeldx,ReStress)
       call saveStrain(outDir,'SphereR'//trim(filename),time,dVeldx,ReStress)
       call makeSphere(farPos,r,drop)
-      call velGradBlob(drop,vel,dVeldx,ReStress)
-      call saveStrain(outDir,'FarSphereR'//trim(filename),time,dVeldx,ReStress)
-      call velGradModes(dropPos(1,:),r,uHat,vHat,wHat,dVeldx,ReStress)
+      !call velGradBlob(drop,vel,dVeldx,ReStress)
+      !call saveStrain(outDir,'FarSphereR'//trim(filename),time,dVeldx,ReStress)
+      !call velGradModes(dropPos,r,uHat,vHat,wHat,dVeldx,ReStress)
       call saveStrain(outDir,'Modes'//trim(filename),time,dVeldx,ReStress)
       call velGradModes(farPos,r,uHat,vHat,wHat,dVeldx,ReStress)
       call saveStrain(outDir,'FarModesR'//trim(filename),time,dVeldx,ReStress)
-    enddo
-    write(statU,'(ES16.7E3,i16,4ES16.7E3,6i16,3ES16.7E3)') time,dropSize,dropArea,deformation,kurMean,kurStdDev,&
-          last0(:),last1(:),kurInv,kurInvSq,sumSurPow
+    !enddo
+    write(statU,'(ES16.7E3,i16,4ES16.7E3,6i16,2ES16.7E3)') time,dropSize,dropArea,deformation,kurMean,kurStdDev,&
+          last0(:),last1(:),kurInv,kurInvSq
     flush(statU)
     ! generate format string for writing 
-    write(str,'(a,i0,a)') '(',1+maxMom*3,'(ES16.7E3))'
-    write(posiU,str) time, (dropPos(mom,:),mom=1,maxMom)
+    write(posiU,'(4ES16.7E3)') time, dropPos
     flush(posiU)
+    write(str,'(a,i0,a)') '(',1+maxMom*3,'(ES16.7E3))'
     write(veloU,str) time, (dropVel(mom,:),mom=1,maxMom)
     flush(veloU)
     write(MoInU,'(13ES16.7E3)') time, MoIEiVals, MoI
