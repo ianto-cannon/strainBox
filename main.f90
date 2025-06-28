@@ -13,7 +13,7 @@ type ragged_array
   character(len=12) :: indexName
 end type ragged_array
 integer,parameter :: maxMom=2
-character(len=200) :: filename, runName, weName='we_10/', inDir, outDir, fileEnd, str
+character(len=200) :: filename, runName, weName='we_02/', inDir, outDir, fileEnd, str
 integer :: i,j,k,ip,jp,kp,iq,jq,kq,iShifted,mom,ii,jj,im,jm,km
 integer :: cols,paintIt,faceOnCorner,genus,onInt,error,ios,rank,ntask
 integer :: statU,posiU,veloU,MoInU,topoU,dirU,listU
@@ -46,9 +46,9 @@ hist(2)%indexName='2'
 hist(3)%indexName='3'
 plan        =fftwf_plan_dft_r2c_3d(nt(3), nt(2), nt(1), u, uHat, FFTW_ESTIMATE)
 if (rank.eq.0) call system('ls /home/alberto.velamartin/drop_time/'//trim(weName)//&
-                            '/ > ../'//trim(weName)//'dir_list.txt')
+                            '/ > ../dir_list.txt')
 call mpi_barrier(mpi_comm_world,error)
-open(newunit=dirU, file='../'//trim(weName)//'dir_list.txt', status='old', action='read')
+open(newunit=dirU, file='../dir_list.txt', status='old', action='read')
 do
   read(dirU, '(A)', iostat=ios) runName
   if (ios /= 0) exit
@@ -57,11 +57,10 @@ do
   if ( modulo( runNum, ntask ) .ne. rank) cycle
   !if ( runNum .ne. 0) cycle
   inDir='/home/alberto.velamartin/drop_time/'//trim(weName)//trim(runName)
-  outDir='../'//trim(weName)//trim(runName)
+  outDir='../'//trim(runName)//'/'
   !outDir='output/'
   call system('mkdir '//trim(outDir))
-  !call system('ls '//trim(inDir)//'/field*.h5 > '//trim(outDir)//'/file_list.txt')
-  call system('ls '//trim(inDir)//'/field.008.h5 > '//trim(outDir)//'/file_list.txt')
+  call system('ls '//trim(inDir)//'/field*.h5 > '//trim(outDir)//'/file_list.txt')
   fileEnd='.txt'
   open(newunit=statU,file=trim(outDir)//'/statDrops'//trim(fileEnd),access='append',form='formatted',status='REPLACE')
   open(newunit=posiU,file=trim(outDir)//'/posiDrops'//trim(fileEnd),access='append',form='formatted',status='REPLACE')
@@ -135,7 +134,7 @@ do
     vel(1,:,:,:)=u
     vel(2,:,:,:)=v
     vel(3,:,:,:)=w
-    write(*,*)'rmsVel',sqrt(sum(vel**2)/nt(3)**3/3)
+    !write(*,*)'rmsVel',sqrt(sum(vel**2)/nt(3)**3/3)
     dropSize=0
     do k=1,nt(3)
       do j=1,nt(2)
@@ -510,7 +509,7 @@ call fftw_destroy_plan(plan)
 call fftw_cleanup()
 write(*,*) 'rank',rank,'done'
 call mpi_barrier(mpi_comm_world,error)
-if (rank.eq.0) call system('rm ../'//trim(weName)//'dir_list.txt')
+if (rank.eq.0) call system('rm ../dir_list.txt')
 if (rank.eq.0) write(6,*) 'This is the end'
 call mpi_finalize(error)
 return

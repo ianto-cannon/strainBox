@@ -1,6 +1,6 @@
 #!/bin/bash
-#SBATCH -J strainBoxWe05
+#SBATCH -J strainBoxWe02
 #SBATCH -t 2-00:00:00
-#SBATCH -n 32
+#SBATCH -n 16
 module load impi
-mpirun -np 32 ./dropStrain
+mpirun -np 16 ./dropStrain
