@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH -J strainBoxWe02
+#SBATCH -J we10strain
 #SBATCH -t 2-00:00:00
 #SBATCH -n 16
 module load impi

@@ -13,7 +13,7 @@ type ragged_array
   character(len=12) :: indexName
 end type ragged_array
 integer,parameter :: maxMom=2
-character(len=200) :: filename, runName, weName='we_02/', inDir, outDir, fileEnd, str
+character(len=200) :: filename, runName, weName='we_10/', inDir, outDir, fileEnd, str
 integer :: i,j,k,ip,jp,kp,iq,jq,kq,iShifted,mom,ii,jj,im,jm,km
 integer :: cols,paintIt,faceOnCorner,genus,onInt,error,ios,rank,ntask
 integer :: statU,posiU,veloU,MoInU,topoU,dirU,listU
@@ -57,9 +57,9 @@ do
   if ( modulo( runNum, ntask ) .ne. rank) cycle
   !if ( runNum .ne. 0) cycle
   inDir='/home/alberto.velamartin/drop_time/'//trim(weName)//trim(runName)
-  outDir='../'//trim(runName)//'/'
+  outDir='output/'//trim(runName)//'/'
   !outDir='output/'
-  call system('mkdir '//trim(outDir))
+  call system('mkdir -p '//trim(outDir))
   call system('ls '//trim(inDir)//'/field*.h5 > '//trim(outDir)//'/file_list.txt')
   fileEnd='.txt'
   open(newunit=statU,file=trim(outDir)//'/statDrops'//trim(fileEnd),access='append',form='formatted',status='REPLACE')
@@ -487,11 +487,11 @@ do
     write(posiU,'(4ES16.7E3)') time, dropPos
     flush(posiU)
     write(str,'(a,i0,a)') '(',1+maxMom*3,'(ES16.7E3))'
-    !write(veloU,str) time, (dropVel(mom,:),mom=1,maxMom)
+    write(veloU,str) time, (dropVel(mom,:),mom=1,maxMom)
     flush(veloU)
     write(MoInU,'(13ES16.7E3)') time, MoIEiVals, MoI
     flush(MoInU)
-    !write(topoU,'(ES16.7E3, 4i16)') time,vertices,edges,faces,genus
+    write(topoU,'(ES16.7E3, 4i16)') time,vertices,edges,faces,genus
     flush(topoU)
   enddo
   close(posiU,status='keep')
