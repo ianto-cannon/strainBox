@@ -46,9 +46,9 @@ hist(2)%indexName='2'
 hist(3)%indexName='3'
 plan        =fftwf_plan_dft_r2c_3d(nt(3), nt(2), nt(1), u, uHat, FFTW_ESTIMATE)
 if (rank.eq.0) call system('ls /home/alberto.velamartin/drop_time/'//trim(weName)//&
-                            '/ > ../dir_list.txt')
+                            '/ > dir_list.txt')
 call mpi_barrier(mpi_comm_world,error)
-open(newunit=dirU, file='../dir_list.txt', status='old', action='read')
+open(newunit=dirU, file='dir_list.txt', status='old', action='read')
 do
   read(dirU, '(A)', iostat=ios) runName
   if (ios /= 0) exit
@@ -509,7 +509,7 @@ call fftw_destroy_plan(plan)
 call fftw_cleanup()
 write(*,*) 'rank',rank,'done'
 call mpi_barrier(mpi_comm_world,error)
-if (rank.eq.0) call system('rm ../dir_list.txt')
+if (rank.eq.0) call system('rm dir_list.txt')
 if (rank.eq.0) write(6,*) 'This is the end'
 call mpi_finalize(error)
 return
