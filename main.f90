@@ -8,23 +8,23 @@ integer, parameter :: startTime=19, nTimes=100, n=256
 integer, parameter :: kAlias=int((2.0/3.0)* (n/2))
 real, parameter :: pi=3.14159265358979, dx=1.0, l=n*dx
 logical :: fileExists
-character(len=200) :: filename, runName, weName='we_08/', inDir, outDir='../we_08/', fileEnd, str
+character(len=200) :: filename, runName, weName='we_05/', inDir, outDir='../we_05PSpec/', fileEnd, str
 integer :: i,j,k,t,im,jm,km,tm,error,intR,ntask,rank
-integer :: ios,dirU,specU,forcU,fPosU,fNegU,fImaU
+integer :: ios,dirU,specU,forcU,fPosU,fNegU,fImaU,pSpcU
 integer(hid_t) :: file_id, dset_id
 integer(hsize_t) :: dims(3)=(/n,n,n/),  dims1d(1)=(/1/) 
 real :: Cn,r,time,We,res,weight,wavNum(3),window
-real, dimension(n,n,n) :: phase,dxxPhase,cPot,dxCPot,dyCPot,dzCPot
-real, dimension(0:kAlias,0:nTimes/2) :: FSpec,ESpec,FSpecPos,FSpecNeg,FImag
+real, dimension(n,n,n) :: dxxPhase,cPot,dxCPot,dyCPot,dzCPot
+real, dimension(0:kAlias,0:nTimes/2) :: FSpec,ESpec,FSpecPos,FSpecNeg,FImag,PSpec
 complex, dimension(n/2+1,n,n) :: cH,cPotH,dxCPotH,dyCPotH,dzCPotH
-complex, dimension(n,n,n,nTimes) :: u,v,w,suX,suY,suZ
+complex, dimension(n,n,n,nTimes) :: phase,u,v,w,suX,suY,suZ
 complex :: surPow
 type(C_PTR)  :: plan, plan_inverse, plan4
 !call mpi_init(error)
 !call mpi_comm_rank(mpi_comm_world,rank,error)
 !call mpi_comm_size(mpi_comm_world,ntask,error)
-plan        =fftwf_plan_dft_r2c_3d(n, n, n, phase, cH, FFTW_ESTIMATE)
-plan_inverse=fftwf_plan_dft_c2r_3d(n, n, n, cH, phase, FFTW_ESTIMATE)
+plan        =fftwf_plan_dft_r2c_3d(n, n, n, cPot, cPotH, FFTW_ESTIMATE)
+plan_inverse=fftwf_plan_dft_c2r_3d(n, n, n, cPotH, cPot, FFTW_ESTIMATE)
 plan4       =fftwf_plan_dft(4, [nTimes, n, n, n], u, u, 1, FFTW_ESTIMATE)
 call system('ls /home/alberto.velamartin/drop_time/'//trim(weName)//&
                             '/ > '//trim(outDir)//'dir_list.txt')
@@ -57,11 +57,10 @@ do
       call h5dopen_f(file_id, 'c', dset_id, error)
         call h5dread_f(dset_id, H5T_NATIVE_REAL, dxxPhase, dims, error)
       call h5dclose_f(dset_id, error)
-      !write(*,*)'60ntastk',ntask,'rank',rank
       do k=1,n
         do j=1,n
           do i=1,n
-            phase(i,j,k) = dxxPhase(k,j,i)
+            phase(i,j,k,t) = dxxPhase(k,j,i)
           enddo
         enddo
       enddo
@@ -111,7 +110,8 @@ do
         enddo
       enddo
     enddo
-    call fftwf_execute_dft_r2c(plan, phase, cH)
+    dxxPhase = real(phase(:,:,:,t))
+    call fftwf_execute_dft_r2c(plan, dxxPhase, cH)
     do k=1,n
       km=k-1
       if (km.gt.n/2) km=km-n
@@ -127,7 +127,7 @@ do
       enddo
     enddo
     call fftwf_execute_dft_c2r(plan_inverse, cH, dxxPhase)
-    cPot = 1/Cn * (phase*phase - 1)*phase - Cn*dxxPhase
+    cPot = 1/Cn * (phase(:,:,:,t)*phase(:,:,:,t) - 1)*phase(:,:,:,t) - Cn*dxxPhase
     call fftwf_execute_dft_r2c(plan, cPot, cPotH)
     dxCPotH = cmplx(0.0,0.0)
     dyCPotH = cmplx(0.0,0.0)
@@ -154,9 +154,10 @@ do
     call fftwf_execute_dft_c2r(plan_inverse, dxCPotH, dxCPot)
     call fftwf_execute_dft_c2r(plan_inverse, dyCPotH, dyCPot)
     call fftwf_execute_dft_c2r(plan_inverse, dzCPotH, dzCPot)
-    suX(:,:,:,t) = phase(:,:,:) * dxCPot(:,:,:)*window
-    suY(:,:,:,t) = phase(:,:,:) * dyCPot(:,:,:)*window
-    suZ(:,:,:,t) = phase(:,:,:) * dzCPot(:,:,:)*window
+    suX(:,:,:,t) = phase(:,:,:,t) * dxCPot(:,:,:)*window
+    suY(:,:,:,t) = phase(:,:,:,t) * dyCPot(:,:,:)*window
+    suZ(:,:,:,t) = phase(:,:,:,t) * dzCPot(:,:,:)*window
+    phase(:,:,:,t) = phase(:,:,:,t) * window
   enddo
   write(*,*) 'fft u'
   call fftwf_execute_dft(plan4, u, u)
@@ -170,11 +171,14 @@ do
   call fftwf_execute_dft(plan4, suY, suY)
   write(*,*) 'fft suZ'
   call fftwf_execute_dft(plan4, suZ, suZ)
+  write(*,*) 'fft phase'
+  call fftwf_execute_dft(plan4, phase, phase)
   ESpec=0.0
   FSpec=0.0
   FImag=0.0
   FSpecNeg=0.0
   FSpecPos=0.0
+  PSpec=0.0
   weight = 1.0/n/n/n/nTimes
   do t=1,nTimes
     tm=t-1
@@ -205,6 +209,7 @@ do
             
             FSpec(intR,tm) = FSpec(intR,tm) + real(surPow)
             FImag(intR,tm) = FImag(intR,tm) + aimag(surPow)
+            PSpec(intR,tm) = PSpec(intR,tm) + weight * r**2 * abs(phase(i,j,k,t))**2 
             if(real(surPow).gt.0.0) then
               FSpecPos(intR,tm) = FSpecPos(intR,tm) + real(surPow) 
             else
@@ -222,18 +227,21 @@ do
   open(newunit=fImaU,file=trim(outDir)//'FImag_'//trim(fileEnd),access='append',form='formatted',status='REPLACE')
   open(newunit=fPosU,file=trim(outDir)//'FPosi_'//trim(fileEnd),access='append',form='formatted',status='REPLACE')
   open(newunit=fNegU,file=trim(outDir)//'FNega_'//trim(fileEnd),access='append',form='formatted',status='REPLACE')
+  open(newunit=pSpcU,file=trim(outDir)//'PSpec_'//trim(fileEnd),access='append',form='formatted',status='REPLACE')
     do k=0,kAlias
       write(specU,str) ESpec(k,:)
       write(forcU,str) FSpec(k,:) 
       write(fImaU,str) FImag(k,:) 
       write(fPosU,str) FSpecPos(k,:)
       write(fNegU,str) FSpecNeg(k,:)
+      write(pSpcU,str) PSpec(k,:)
     enddo
   close(specU,status='keep')
   close(forcU,status='keep')
   close(fImaU,status='keep')
   close(fPosU,status='keep')
   close(fNegU,status='keep')
+  close(pSpcU,status='keep')
 enddo
 call fftw_destroy_plan(plan)
 call fftw_destroy_plan(plan_inverse)

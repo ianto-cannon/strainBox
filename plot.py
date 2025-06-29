@@ -143,7 +143,9 @@ def energyWindowsVsFreq():
   return
 
 def energyFreqVsWav(): 
-  for case in 'we_02 we_05windowing  we_10'.split():
+  for case in 'we_02 we_05windowing  we_10 we_05PSpec'.split():
+    if 'PSpec' in case: specTyp='/P'
+    else: continue#specTyp='/E'
     fig, ax = plt.subplots(1)
     ax.tick_params(which='both', direction='in', top=True, right=True)
     ax.set_xlabel('$\\frac{kL}{2\\pi}$', rotation=0,size=22)
@@ -154,18 +156,20 @@ def energyFreqVsWav():
     ax.set_xlim([1,85])
     df=np.zeros((51,86))
     for i in range(1000):
-      fname = '../'+case+f'/ESpec_run_break_{i:03}.txt'
+      fname = '../'+case+specTyp+f'Spec_run_break_{i:03}.txt'
       try:
         with open(fname, encoding = 'utf-8') as f:
           df += np.loadtxt(f).T
-          #print(f"found: {fname}")
+          print(f"found: {fname}")
       except FileNotFoundError:
         continue
     tot=np.sum(df)
-    E = [[df[i, j] * i * j/tot for j in range(df.shape[1])] for i in range(df.shape[0])]
+    #E = [[df[i, j] * i * j/tot for j in range(df.shape[1])] for i in range(df.shape[0])]
+    E = df/tot 
     #mappable = ax.pcolormesh(np.log10(E))#, vmin=-8, vmax=0)
-    lels=range(-11,1,1)
-    mappable = ax.contourf( np.log10(E), levels=lels)
+    #lels=range(-11,1,1)
+    #mappable = ax.contourf( np.log10(E))#, levels=lels)
+    mappable = ax.contourf( E, levels=10)
     cBar = plt.colorbar(mappable, ax=ax)
     #cBar.set_label('$\\mathbf{\\hat f_\\sigma\\cdot\\hat u^*}$', rotation=0, labelpad=15)
     cBar.set_label('$\\log(\\mathbf{\\hat u\\cdot\\hat u^*}kL\\omega T /(4\\pi^2E)$')#, rotation=0, labelpad=15)
@@ -242,7 +246,7 @@ def surPowFreqVsWav():
   return
 
 #energyVsFreq()
-surPowVsFreq()
+#surPowVsFreq()
 #energyWindowsVsFreq()
-#energyFreqVsWav()
+energyFreqVsWav()
 #surPowFreqVsWav()
