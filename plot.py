@@ -3,23 +3,26 @@ import matplotlib.pyplot as plt
 plt.rcdefaults()
 plt.rcParams.update({"text.usetex": True,'font.size' : 14,})
 timestep=.05
-nyqTime=2*timestep
-We=.05
-rho=We
 sigma=2*2**.5/3
 diam=2*np.pi/3
 vis=.219 #from measurements of rmsVel and Re_lambda=58
-tsig=(rho*diam**3/sigma)**.5
 td=diam**(2/3.)
 cmap = plt.get_cmap('plasma')
-
+freq = np.array([i*td/timestep/100 for i in range(51)])
+wavNumb = np.array([i/3 for i in range(86)])
+X, Y = np.meshgrid(wavNumb,freq)
+wavLabel='$\\frac{kd}{2\\pi}$'
+freqLabel='$\\frac{\\omega t_d}{2\\pi}$'
 case = {
     'we_02'          :{'We':.02, 'col':cmap(.8)},
-    'we_05windowing' :{'We':.05, 'col':cmap(.5)},
-    'we_08'          :{'We':.08, 'col':cmap(.3)},
+    'we_05windowing' :{'We':.05, 'col':cmap(.6)},
+    'we_05PSpec'     :{'We':.05, 'col':cmap(.6)},
+    'we_08'          :{'We':.08, 'col':cmap(.4)},
     'we_10'          :{'We':.10, 'col':cmap(.2)}
        }
-
+for dirName, stat in case.items():
+  stat['rho']=stat['We']
+  stat['tsig']=(stat['rho']*diam**3/sigma)**.5
 
 def energyVsFreq(): 
   fig, ax = plt.subplots(1)
@@ -67,22 +70,20 @@ def surPowVsFreq():
       direction='inout',  # Extend both in and out
       #length=6            # Length of ticks (adjust as needed)
   )
-  ax.set_ylabel('$\\frac{\\mathbf{\\hat f_\\sigma\\cdot\\hat u^*}\omega T}{2\\pi\\epsilon}$', rotation=0, labelpad=15, size=22)
-  ax.set_xlabel('$\\omega T /2\\pi$', rotation=0)
+  ax.set_ylabel('$\\frac{\\mathbf{\\hat f_\\sigma\\cdot\\hat u^*}\omega t_d}{2\\pi\\epsilon}$', rotation=0, labelpad=15, size=22)
+  ax.set_xlabel(freqLabel, rotation=0, size=22)
   ax.set_xscale('log')
   ax.set_ylim([-8e4,8e4])
-  freq = np.array([i*td/nyqTime/50 for i in range(1,51)])
-  ax.set_xlim([freq[0],freq[-1]])
+  #freq = np.array([i*td/nyqTime/50 for i in range(1,51)])
+  ax.set_xlim([freq[1],freq[-1]])
   #dFreq=100*timestep/td
   #ax.plot([dFreq,dFreq],[-2E5,2E5],c='k',alpha=.3)
   for dirName, stat in case.items():
+    if 'PSpec' in dirName: continue
     print(dirName)
-    rho=stat['We']
-    sigma=2*2**.5/3
-    tsig=(rho*diam**3/sigma)**.5
     count=0
     allSpec=[]
-    E=np.zeros(50)
+    E=np.zeros(51)
     for i in range(1000):
       fname = '../'+dirName+f'/FSpec_run_break_{i:03}.txt'
       try:
@@ -91,7 +92,7 @@ def surPowVsFreq():
       except FileNotFoundError:
         continue
       count+=1
-      F = np.array([np.sum(df[:,i]*freq[i-1]) for i in range(1,51)])
+      F = np.array([np.sum(df[:,i]*freq[i]) for i in range(51)])
       F/=stat['We']
       if 'we_05windowing'in dirName: F*=4
       E += (F -E)/count
@@ -100,9 +101,9 @@ def surPowVsFreq():
     l = np.nanpercentile(specData, 25, axis=0)
     u = np.nanpercentile(specData, 75, axis=0)
     print('count',count)
-    ax.plot([td/tsig,td/tsig],[-8E4,8E4],c=stat['col'],alpha=.3)
+    ax.plot([td/stat['tsig'],td/stat['tsig']],[-8E4,8E4],c=stat['col'],alpha=.3)
     ax.fill_between(freq,l,u,color=stat['col'],alpha=0.3,edgecolor='none') 
-    ax.plot(freq,E,label=dirName,c=stat['col'])
+    ax.plot(freq,E,label=dirName,c=stat['col'],alpha=0.85)
   ax.legend()
   fname = 'plots/surPowVsFreq.pdf'
   print('savin ',fname)
@@ -144,8 +145,10 @@ def energyWindowsVsFreq():
 
 def energyFreqVsWav(): 
   for case in 'we_02 we_05windowing  we_10 we_05PSpec'.split():
-    if 'PSpec' in case: specTyp='/P'
-    else: continue#specTyp='/E'
+    if 'PSpec' in case: 
+      specTyp='/P'
+    else: 
+      continue#specTyp='/E'
     fig, ax = plt.subplots(1)
     ax.tick_params(which='both', direction='in', top=True, right=True)
     ax.set_xlabel('$\\frac{kL}{2\\pi}$', rotation=0,size=22)
@@ -178,21 +181,57 @@ def energyFreqVsWav():
     fig.savefig(fname, bbox_inches='tight', transparent=True, format='pdf', dpi=600)
   return
 
+def phaseFreqVsWav(): 
+  for dirName, stat in case.items():
+    if 'we_05PSpec' not in dirName: continue
+    fig, ax = plt.subplots(1)
+    ax.tick_params(which='both', direction='in', top=True, right=True)
+    ax.set_xlabel(wavLabel, rotation=0,size=22)
+    ax.set_ylabel(freqLabel, rotation=0,size=22)#,labelpad=15)
+    ax.set_xscale('log')
+    ax.set_yscale('log')
+    ax.set_ylim([freq[1],freq[-1]])
+    ax.set_xlim([wavNumb[1],wavNumb[-1]])
+    df=np.zeros((51,86))
+    count=0
+    for i in range(1000):
+      fname = '../'+dirName+f'/PSpec_run_break_{i:03}.txt'
+      try:
+        with open(fname, encoding = 'utf-8') as f:
+          count+=1
+          df += np.loadtxt(f).T
+          #print(f"found: {fname}")
+      except FileNotFoundError:
+        continue
+    print('count',count)
+    tot=np.sum(df)
+    E = df/count/np.pi/(256/3)**2/sigma#/tot 
+    print('tot',np.sum(df))
+    ax.plot([wavNumb[1],wavNumb[-1]],[td/stat['tsig'],td/stat['tsig']],c=stat['col'],alpha=.3)
+    mappable = ax.contourf(X, Y, E, levels=10, cmap='Greys')
+    cBar = plt.colorbar(mappable, ax=ax)#, orientation='horizontal')
+    cBar.set_label('$\\alpha\\mathbf{k\\cdot k}\\hat c^2 /(\\pi d^2\\sigma)$')
+    fname = 'plots/phaseFreqVsWav.pdf'
+    print('savin ',fname)
+    fig.savefig(fname, bbox_inches='tight', transparent=True, format='pdf', dpi=600)
+  return
+
 def surPowFreqVsWav(): 
   import matplotlib.colors as mcolors
   from scipy.interpolate import griddata
   #for case in 'we_02  we_05  we_05T100  we_05nTime100  we_05tanhWindow  we_05window  we_05windowing  we_10'.split():
-  for case in 'we_02 we_05windowing  we_10'.split():
-    print(case)
+  for dirName, stat in case.items():
+    if 'PSpec' in dirName: continue
+    print(dirName)
     fig, ax = plt.subplots(1)#, figsize=[columnWid, .6*columnWid])
     ax.tick_params(which='both', direction='in', top=True, right=True)
-    ax.set_xlabel('$\\frac{kd}{2\\pi}$', rotation=0,size=22)#,labelpad=15)
-    ax.set_ylabel('$\\frac{\\omega t_\\sigma }{2\\pi}$', rotation=0,size=22)
+    ax.set_xlabel(wavLabel, rotation=0,size=22)#,labelpad=15)
+    ax.set_ylabel(freqLabel, rotation=0,size=22)
     df=np.zeros((51,86))
     count=0
     allData=[]
     for i in range(600):
-      fname = '../'+case+f'/FSpec_run_break_{i:03}.txt'
+      fname = '../'+dirName+f'/FSpec_run_break_{i:03}.txt'
       try:
         with open(fname, encoding = 'utf-8') as f:
           #print('loadin ',fname)
@@ -206,8 +245,6 @@ def surPowFreqVsWav():
     if count<1:continue
     data = np.stack(allData, axis=0)
     l = np.nanpercentile(data, 75, axis=0)
-    wavNumb = np.array([i/3 for i in range(86)])
-    freq = np.array([i*td/timestep/100 for i in range(51)])
     for i in range(51):
       for j in range(86): 
         x = -df[i,j]*freq[i]*wavNumb[j]/count 
@@ -215,11 +252,10 @@ def surPowFreqVsWav():
         df[i,j]=x
     maxV=np.max(np.abs(df))
     print('maxV',maxV)
-    lels = np.array([-1e6,-1e5,-1e4,-1e3,-1e2,-1e1,-1e0,-1e-1,1e-1,1e0,1e1,1e2,1e3,1e4,1e5,1e6])*4e-4
+    lels = np.array([-1e6,-1e5,-1e4,-1e3,-1e2,-1e1,-1e0,-1e-1,1e-1,1e0,1e1,1e2,1e3,1e4,1e5,1e6])*1e-2
     colors = plt.cm.RdBu(np.linspace(0.05,.95,len(lels)-1))  # or define your own list of colors
     cmap = mcolors.ListedColormap(colors)
     norm = mcolors.BoundaryNorm(lels, ncolors=cmap.N)
-    X, Y = np.meshgrid(wavNumb,freq)
     if False:
       x=wavNumb
       y=freq
@@ -236,11 +272,12 @@ def surPowFreqVsWav():
     cBar.set_ticks(lels)
     cBar.set_ticklabels(lels)
     cBar.ax.tick_params(which='both', direction='in', top=True, left=True)
+    ax.plot([wavNumb[1],wavNumb[-1]],[td/stat['tsig'],td/stat['tsig']],c=stat['col'],alpha=.3)
     ax.set_xlim([wavNumb[1],wavNumb[-1]])
     ax.set_ylim([freq[1],freq[-1]])
     ax.set_xscale('log')
     ax.set_yscale('log')
-    fname = 'plots/surPowFreqVsWav_'+case+'.pdf'
+    fname = 'plots/surPowFreqVsWav_'+dirName+'.pdf'
     print('savin ',fname)
     fig.savefig(fname, bbox_inches='tight', transparent=True, format='pdf', dpi=600)
   return
@@ -248,5 +285,6 @@ def surPowFreqVsWav():
 #energyVsFreq()
 #surPowVsFreq()
 #energyWindowsVsFreq()
-energyFreqVsWav()
-#surPowFreqVsWav()
+#energyFreqVsWav()
+#phaseFreqVsWav()
+surPowFreqVsWav()
