@@ -13,7 +13,7 @@ type ragged_array
   character(len=12) :: indexName
 end type ragged_array
 integer,parameter :: maxMom=2
-character(len=200) :: filename, runName, weName='we_10/', inDir, outDir, fileEnd, str
+character(len=200) :: filename, runName, weName='we_05/', inDir, outDir, fileEnd, str
 integer :: i,j,k,ip,jp,kp,iq,jq,kq,iShifted,mom,ii,jj,im,jm,km
 integer :: cols,paintIt,faceOnCorner,genus,onInt,error,ios,rank,ntask
 integer :: statU,posiU,veloU,MoInU,topoU,dirU,listU

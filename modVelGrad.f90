@@ -75,7 +75,7 @@ complex, intent(in), dimension(nt(1)/2+1,nt(2),nt(3)) :: uHat,vHat,wHat
 real, intent(out), dimension(3,3) :: dVeldx, ReStress
 integer :: i,j,k,ii,jm,km
 real :: wavNum(3), wav, weight
-complex :: eikdotx
+complex :: eikdotx, vel(3)
 dVeldx=0.0
 ReStress=0.0
 do k=1,nt(3)
@@ -93,11 +93,11 @@ do k=1,nt(3)
       wav = sqrt( wavNum(3)**2 + wavNum(2)**2 + wavNum(1)**2 )
       !Find the bin number for this radius. Bins have width 1.0/pointsPerWvNum.
       if(wav.lt.2*pi/rad) then
+        vel = (/uHat(i,j,k), vHat(i,j,k), wHat(i,j,k)/)
         eikdotx = exp( cmplx(0.0, sum( wavNum(:)*pos(:))))
         do ii = 1,3
-          dVeldx(1,ii) = dVeldx(1,ii) + weight * real( cmplx(0.0, wavNum(ii) ) * uHat(i,j,k) * eikdotx)
-          dVeldx(2,ii) = dVeldx(2,ii) + weight * real( cmplx(0.0, wavNum(ii) ) * vHat(i,j,k) * eikdotx)
-          dVeldx(3,ii) = dVeldx(3,ii) + weight * real( cmplx(0.0, wavNum(ii) ) * wHat(i,j,k) * eikdotx)
+          dVeldx(:,ii) = dVeldx(:,ii) + weight * real( cmplx(0.0, wavNum(ii) ) * vel(:) * eikdotx)
+          ReStress(:,ii) = ReStress(:,ii) + weight * real( cmplx(0.0, wavNum(ii) ) * vel(:) * vel(ii) * eikdotx)
         enddo
       endif
     enddo
