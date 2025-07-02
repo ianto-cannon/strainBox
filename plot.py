@@ -63,7 +63,7 @@ def energyVsWaveNumber():
   #ax.set_ylim([1e-2,1e2])
   spec=np.zeros(85)
   count=0
-  for i in range(200):
+  for i in range(1000):
     fname = f'/home/ianto.cannon/drops/boxStrain/we_05BoxLBy2p5/run_break_{i:03}/ESpec.txt'
     try:
       with open(fname, encoding = 'utf-8') as f:
@@ -102,7 +102,7 @@ def surPowVsWaveNumber():
   spec=np.zeros(85)
   allSpec=[]
   count=0
-  for i in range(200):
+  for i in range(1000):
     fname = f'/home/ianto.cannon/drops/boxStrain/we_05BoxLBy2p5/run_break_{i:03}/FSpec.txt'
     try:
       with open(fname, encoding = 'utf-8') as f:
@@ -168,7 +168,7 @@ def surPowWavVsWaveNumber():
   spec=np.zeros(85)
   allSpec=[]
   count=0
-  for i in range(200):
+  for i in range(1000):
     fname = f'/home/ianto.cannon/drops/boxStrain/we_05BoxLBy2p5/run_break_{i:03}/FSpec.txt'
     try:
       with open(fname, encoding = 'utf-8') as f:
@@ -218,7 +218,7 @@ def surPowVsFreg():
   spec=np.zeros(int(timeLen/2+1))
   count=0
   allSpec=[]
-  for i in range(200):
+  for i in range(1000):
     #fname = f'/home/ianto.cannon/drops/boxStrain/we_05BoxLBy2p5/run_break_{i:03}/FSpec.txt'
     fname = f'/home/ianto.cannon/drops/boxStrain/we_05RBy12/run_break_{i:03}/FSpec.txt'
     try:
@@ -278,7 +278,7 @@ def surPowFreqVsFreg():
   timeLen=40
   count=0
   allSpec=[]
-  for i in range(200):
+  for i in range(1000):
     fname = f'/home/ianto.cannon/drops/boxStrain/we_05RBy12/run_break_{i:03}/FSpec.txt'
     try:
       with open(fname, encoding = 'utf-8') as f:
@@ -323,7 +323,7 @@ def surPowFreqVsWaveNumber():
   #ax.set_ylim([1,int(timeLen/2+1)])
   spec=np.zeros((int(timeLen/2+1),85))
   count=0
-  for i in range(200):
+  for i in range(1000):
     fname = f'/home/ianto.cannon/drops/boxStrain/we_05RBy12/run_break_{i:03}/FSpec.txt'
     try:
       with open(fname, encoding = 'utf-8') as f:
@@ -371,7 +371,7 @@ def MoIAlignStrainVsTime():
   allS3 = []
   allS2 = []
   count=0
-  for i in range(200):
+  for i in range(1000):
     fname = f'/home/ianto.cannon/drops/boxStrain/we_05RBy12/run_break_{i:03}/strainSphereR085.txt'
     try:
       with open(fname, encoding = 'utf-8') as f:
@@ -465,15 +465,17 @@ def plotStrainVsTime(dirName,stat):
   import os
   cut=30
   timeLen=100
-  #if stat['We']<.04:continue
-  for matrix in 'ReStress  strain'.split():
-    for region in 'BoxR  FarBoxR  FarModesR  FarSphereR  Modes  SphereR  Drop  Ellipse'.split():
+  #for matrix in 'ReStress  strain'.split():
+  for matrix in 'strain'.split():
+    #for region in 'BoxR  FarBoxR  FarModesR  FarSphereR  Modes  SphereR  Drop  Ellipse'.split():
+    for region in 'BoxR  SphereR  Drop  Ellipse'.split():
       #if 'ReStress' in matrix and 'Modes' in region:continue
-      for rad in [21,43,64,85,107]:
+      #for rad in [21,43,64,85,107]:
+      for rad in [64,85,107]:
         radStr=f'{rad:03}'
         if 'Drop' in region or 'Ellipse' in region: 
-          if rad==21: radStr=''
-          if rad!=21: continue
+          if rad==85: radStr=''
+          if rad!=85: continue
         allStrain = []
         count=0
         lenCount=0
@@ -487,12 +489,9 @@ def plotStrainVsTime(dirName,stat):
           except FileNotFoundError:
             #print(f"File not found: {fname}, skipping.")
             continue
-          if matrix=='strainModes':
-            strain=strain[4::5,:]
           strainLen=np.shape(strain)[0]
           lenCount+=1
           meanStrainLen+=(strainLen-meanStrainLen)/lenCount
-          #if strainLen!=200:print('strainLen',strainLen)
           if strainLen>198:continue
           if strainLen<timeLen+cut:continue
           strain = strain[-timeLen:-1, :4]
@@ -514,7 +513,7 @@ def plotStrainVsTime(dirName,stat):
         ax.set_xlabel('$(t-t_b)/t_d$', rotation=0)
         labels = ['$S_1d^{2/3}\\epsilon^{-1/3}$', r'$S_2$', r'$S_3$']
         if 'strain' in matrix: 
-          ax.set_ylabel('$\\frac{Sd^{2/3}}{\\epsilon^{1/3}}$', rotation=0, size=20)
+          ax.set_ylabel('$\\frac{S^2}{\\epsilon}$', rotation=0, size=20)
         if 'ReStress' in matrix: ax.set_ylabel('$\\frac{Rd^{2/3}}{\\epsilon^{1/3}}$', rotation=0, size=20)
         #ax.set_ylim([-.4,.4])
         ax.set_xlim([-3,0])
@@ -526,8 +525,9 @@ def plotStrainVsTime(dirName,stat):
         std = np.nanstd(strainData, axis=0)
         #time = np.array([(i-199)*timestep/td for i in range(200)])
         time = np.array([(i+2-timeLen)*timestep/td for i in range(timeLen-1)])
-        for i in range(1, 4):
-          ax.plot(time, strainData[1,:,i], color=colors[i-1], alpha=.3)
+        #for i in range(1, 4):
+        for i in range(1, 2):
+          #ax.plot(time, strainData[1,:,i], color=colors[i-1], alpha=.3)
           ax.plot(time, m[:,i], label=labels[i-1], color=colors[i-1])
           ax.fill_between(
             time,p10[:,i],p90[:,i],
@@ -537,7 +537,7 @@ def plotStrainVsTime(dirName,stat):
             color=colors[i-1],
             alpha=0.3,edgecolor='none') 
         #ax.legend()
-        fname = 'strainPlots/' + dirName + '/' + matrix + region + radStr + '.pdf'
+        fname = 'dissPlots/' + dirName + '/' + matrix + region + radStr + '.pdf'
         directory = os.path.dirname(fname)
         os.makedirs(directory, exist_ok=True)
         print('savin ',fname)
@@ -578,7 +578,7 @@ def axesLenVsTime():
   timeLen=100
   allStrain = []
   count=0
-  for i in range(200):
+  for i in range(1000):
     fname = f'/home/ianto.cannon/drops/boxStrain/we_05RBy12/run_break_{i:03}/MoInDrops.txt'
     try:
       with open(fname, encoding = 'utf-8') as f:
@@ -615,41 +615,91 @@ def aspectRatioVsTime():
   fig, ax = plt.subplots(1)
   ax.tick_params(which='both', direction='in', top=True, right=True)
   ax.set_xlabel('$(t-t_b)/t_d$', rotation=0)
-  ax.set_ylabel('$\\frac{2L_3}{L_1+L_2}$', rotation=0, size=20, labelpad=15)
+  ax.set_ylabel('$\\frac{2L_3}{L_1+L_2}$', rotation=0, size=20, labelpad=20)
   #ax.set_ylim([0,2])
   ax.set_xlim([-3,0])
   cut=30
   timeLen=100
-  allStrain = []
-  count=0
-  for i in range(200):
-    fname = f'/home/ianto.cannon/drops/boxStrain/we_05RBy12/run_break_{i:03}/MoInDrops.txt'
-    try:
-      with open(fname, encoding = 'utf-8') as f:
-        strain = np.loadtxt(f)
-    except FileNotFoundError:
-      print(f"File not found: {fname}, skipping.")
-      continue
-    strainLen=np.shape(strain)[0]
-    if strainLen>198:continue
-    if strainLen<timeLen+cut:continue
-    strain = 2*strain[-timeLen:-1,3]/(strain[-timeLen:-1,2]+strain[-timeLen:-1,1])
-    #why is factor of 3/2 needed to get I=1 at t=0? It corresponds to R=0.92L/6
-    count+=1
-    allStrain.append(strain)
-  print('count',count)
-  strainData = np.stack(allStrain, axis=0)
-  p10 = np.nanpercentile(strainData, 25, axis=0)
-  p50 = np.nanpercentile(strainData, 50, axis=0)
-  p90 = np.nanpercentile(strainData, 75, axis=0)
-  m = np.nanmean(strainData, axis=0)
-  std = np.nanstd(strainData, axis=0)
-  time = np.array([(i+2-timeLen)*timestep/td for i in range(timeLen-1)])
-  ax.plot([-3,0], [np.pi/2,np.pi/2], color='k')
-  #ax.plot(time, strainData[31,:,i], color=colors[3-i])#, alpha=.3)
-  ax.plot(time, m, color=colors[2])
-  ax.fill_between(time,p10,p90,color=colors[2],alpha=0.3,edgecolor='none') 
+  for dirName, stat in reversed(case.items()):
+    print(dirName)
+    allStrain = []
+    count=0
+    for i in range(1000):
+      fname='/home/ianto.cannon/drops/boxStrain/'+dirName+stat['output']+f'/run_break_{i:03}/MoInDrops.txt'
+      try:
+        with open(fname, encoding = 'utf-8') as f:
+          strain = np.loadtxt(f)
+      except FileNotFoundError:
+        #print(f"File not found: {fname}, skipping.")
+        continue
+      strainLen=np.shape(strain)[0]
+      if strainLen>198:continue
+      if strainLen<timeLen+cut:continue
+      strain = 2*strain[-timeLen:-1,3]/(strain[-timeLen:-1,2]+strain[-timeLen:-1,1])
+      #why is factor of 3/2 needed to get I=1 at t=0? It corresponds to R=0.92L/6
+      count+=1
+      allStrain.append(strain)
+    print('count',count)
+    if count<5: continue
+    strainData = np.stack(allStrain, axis=0)
+    p10 = np.nanpercentile(strainData, 25, axis=0)
+    p50 = np.nanpercentile(strainData, 50, axis=0)
+    p90 = np.nanpercentile(strainData, 75, axis=0)
+    m = np.nanmean(strainData, axis=0)
+    std = np.nanstd(strainData, axis=0)
+    time = np.array([(i+2-timeLen)*timestep/td for i in range(timeLen-1)])
+    #ax.plot([-3,0], [np.pi/4,np.pi/4], color='k') #above this aspect ratio, the streching is positive
+    #ax.plot(time, strainData[31,:,i], color=colors[3-i])#, alpha=.3)
+    ax.plot(time, m, color=stat['col'])
+    ax.fill_between(time,p10,p90,color=stat['col'],alpha=0.3,edgecolor='none') 
   fname = 'plots/aspectRatioVsTime.pdf'
+  print('savin ',fname)
+  fig.savefig(fname, bbox_inches='tight', transparent=True, format='pdf', dpi=600)
+  return
+
+def dissVsTime(): 
+  fig, ax = plt.subplots(1)
+  ax.tick_params(which='both', direction='in', top=True, right=True)
+  ax.set_xlabel('$(t-t_b)/t_d$', rotation=0)
+  ax.set_ylabel('$\\frac{Sd^{4/3}}{\\epsilon^{2/3}}$', rotation=0, size=20, labelpad=20)
+  ax.set_xlim([-3,0])
+  cut=30
+  timeLen=100
+  for dirName, stat in reversed(case.items()):
+    print(dirName)
+    allStrain = []
+    count=0
+    for i in range(1000):
+      fname='/home/ianto.cannon/drops/boxStrain/'+dirName+stat['output']+f'/run_break_{i:03}/strain/SphereR085.txt'
+      try:
+        with open(fname, encoding = 'utf-8') as f:
+          strain = np.loadtxt(f)
+      except FileNotFoundError:
+        #print(f"File not found: {fname}, skipping.")
+        continue
+      strainLen=np.shape(strain)[0]
+      if strainLen>198:continue
+      if strainLen<timeLen+cut:continue
+      strain = strain[-timeLen:-1,:4]
+      strain = strain[:,1]**2 + strain[:,2]**2 + strain[:,3]**2
+      strain=strain*(256/3.)**(4/3.)
+      #why is factor of 3/2 needed to get I=1 at t=0? It corresponds to R=0.92L/6
+      count+=1
+      allStrain.append(strain)
+    print('count',count)
+    if count<5: continue
+    strainData = np.stack(allStrain, axis=0)
+    p10 = np.nanpercentile(strainData, 25, axis=0)
+    p50 = np.nanpercentile(strainData, 50, axis=0)
+    p90 = np.nanpercentile(strainData, 75, axis=0)
+    m = np.nanmean(strainData, axis=0)
+    std = np.nanstd(strainData, axis=0)
+    time = np.array([(i+2-timeLen)*timestep/td for i in range(timeLen-1)])
+    #ax.plot([-3,0], [np.pi/4,np.pi/4], color='k') #above this aspect ratio, the streching is positive
+    #ax.plot(time, strainData[31,:,i], color=colors[3-i])#, alpha=.3)
+    ax.plot(time, m, color=stat['col'])
+    ax.fill_between(time,p10,p90,color=stat['col'],alpha=0.3,edgecolor='none') 
+  fname = 'plots/dissVsTime.pdf'
   print('savin ',fname)
   fig.savefig(fname, bbox_inches='tight', transparent=True, format='pdf', dpi=600)
   return
@@ -665,7 +715,7 @@ def areaVsTime():
   timeLen=100
   allStrain = []
   count=0
-  for i in range(200):
+  for i in range(1000):
     fname = f'/home/ianto.cannon/drops/boxStrain/we_05RBy12/run_break_{i:03}/statDrops.txt'
     try:
       with open(fname, encoding = 'utf-8') as f:
@@ -704,7 +754,7 @@ def areaAllVsTime():
   #ax.set_xlim([-3,0])
   allStrain = []
   count=0
-  for i in range(200):
+  for i in range(1000):
     fname = f'/home/ianto.cannon/drops/boxStrain/we_05RBy12/run_break_{i:03}/statDrops.txt'
     try:
       with open(fname, encoding = 'utf-8') as f:
@@ -784,6 +834,64 @@ def strainDiagram():
   fig.savefig(fname, bbox_inches='tight', transparent=True, format='pdf', dpi=600)
   return
 
+def aspecRatioVsDiss(): 
+  fig = []
+  ax = []
+  backLen=50
+  for back in range(backLen):
+    figTemp, axTemp = plt.subplots(1)
+    axTemp.tick_params(which='both', direction='in', top=True, right=True)
+    axTemp.set_ylabel('$\\frac{2L_3}{L_1+L_2}$', rotation=0, size=20, labelpad=20)
+    axTemp.set_xlabel('$\\frac{S^2d^{4/3}}{\\epsilon^{2/3}}$', rotation=0, size=20, labelpad=20)
+    #axTemp.set_xlabel('$|\\mathbf{\\hat s_3\\cdot \hat l_3}|$', rotation=0, labelpad=10)
+    #axTemp.set_xlim([0,1])
+    axTemp.set_xlim([0,.4])
+    axTemp.set_ylim([1,2])
+    fig.append(figTemp)
+    ax.append(axTemp)
+  for dirName, stat in reversed(case.items()):
+    print(dirName)
+    allStrain = []
+    count=0
+    for i in range(1000):
+      fname='/home/ianto.cannon/drops/boxStrain/'+dirName+stat['output']+f'/run_break_{i:03}/strain/SphereR085.txt'
+      try:
+        with open(fname, encoding = 'utf-8') as f:
+          strain = np.loadtxt(f)
+      except FileNotFoundError:
+        continue
+      strainLen=np.shape(strain)[0]
+      strain = strain[:,1]**2 + strain[:,2]**2 + strain[:,3]**2
+      strain=strain*(256/3.)**(4/3.)
+      fname='/home/ianto.cannon/drops/boxStrain/'+dirName+stat['output']+f'/run_break_{i:03}/MoInDrops.txt'
+      try:
+        with open(fname, encoding = 'utf-8') as f:
+          MoI = np.loadtxt(f)
+      except FileNotFoundError:
+        continue
+      for i in range(len(MoI[:,0])):
+        if abs(sum(MoI[i,4:7]**2)) > 2: MoI[i,4] = np.nan 
+      #inProdS3 = [ abs(sum(MoI[i,4:7]*strain[i,10:13])) for i in range(len(MoI[:,0])) ]
+      MoI = 2*MoI[:,3]/(MoI[:,2]+MoI[:,1])
+      count+=1
+      if strainLen<backLen+30: continue
+      if strainLen==200: continue
+      for back in range(backLen):
+        if back==0:sym='x'
+        else:sym='.'
+        try: 
+          #ax[back].plot(inProdS3[-2-back], MoI[-2-back], sym, color=stat['col'])
+          #ax[back].plot(inProdS3[-5-back:-1-back], MoI[-5-back:-1-back], color=stat['col'], alpha=.5)
+          ax[back].plot(strain[-2-back], MoI[-2-back], sym, color=stat['col'])
+          ax[back].plot(strain[-5-back:-1-back], MoI[-5-back:-1-back], color=stat['col'], alpha=.5)
+        except: IndexError
+      allStrain.append(strain)
+  for back in range(backLen):
+    #fname = 'plots/back/alignmentVsDissBack'+str(back)+'.pdf'
+    fname = f'plots/aspectRatioVsDiss/back{back:03}.pdf'
+    print('savin ',fname)
+    fig[back].savefig(fname, bbox_inches='tight', transparent=True, format='pdf', dpi=600)
+  return
 
 #surPowVsWaveNumber()
 #surPowWavVsWaveNumber()
@@ -794,9 +902,11 @@ def strainDiagram():
 #areaVsTime()
 #MoIAlignStrainVsTime()
 #sanBernado()
-strainVsTime()
+#strainVsTime()
 #axesLenVsTime()
 #aspectRatioVsTime()
+#dissVsTime()
 #areaVsTime()
 #areaAllVsTime()
 #strainDiagram()
+aspecRatioVsDiss()
