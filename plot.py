@@ -13,6 +13,15 @@ tsig=(rho*diam**3/sigma)**.5
 td=diam**(2/3.)
 cmap = plt.get_cmap('plasma')
 colors = [cmap(i) for i in np.linspace(0.8, 0.2, 3)] 
+case = {
+    'we_02'   :{'output':'',        'We':.02, 'col':cmap(.8)},
+    'we_05'   :{'output':'/output', 'We':.05, 'col':cmap(.6)},
+    'we_08'   :{'output':'/output', 'We':.08, 'col':cmap(.4)},
+    'we_10'   :{'output':'/output', 'We':.10, 'col':cmap(.2)}
+       }
+for dirName, stat in case.items():
+  stat['rho']=stat['We']
+  stat['tsig']=(stat['rho']*diam**3/sigma)**.5
 
 def areaVsTime(): 
   fig, ax = plt.subplots(1)#, figsize=[columnWid, .6*columnWid])
@@ -451,115 +460,94 @@ def sanBernado():
   fig.savefig(fname, bbox_inches='tight', transparent=True, format='jpg', dpi=600)
   return
 
+
+def plotStrainVsTime(dirName,stat):
+  import os
+  cut=30
+  timeLen=100
+  #if stat['We']<.04:continue
+  for matrix in 'ReStress  strain'.split():
+    for region in 'BoxR  FarBoxR  FarModesR  FarSphereR  Modes  SphereR  Drop  Ellipse'.split():
+      #if 'ReStress' in matrix and 'Modes' in region:continue
+      for rad in [21,43,64,85,107]:
+        radStr=f'{rad:03}'
+        if 'Drop' in region or 'Ellipse' in region: 
+          if rad==21: radStr=''
+          if rad!=21: continue
+        allStrain = []
+        count=0
+        lenCount=0
+        meanStrainLen=0
+        for i in range(1000):
+          fname='/home/ianto.cannon/drops/boxStrain/'+dirName+stat['output']+f'/run_break_{i:03}/'+matrix+'/'+region+radStr+'.txt'
+          try:
+            with open(fname, encoding = 'utf-8') as f:
+              #print('loadin ',fname)
+              strain = np.loadtxt(f)
+          except FileNotFoundError:
+            #print(f"File not found: {fname}, skipping.")
+            continue
+          if matrix=='strainModes':
+            strain=strain[4::5,:]
+          strainLen=np.shape(strain)[0]
+          lenCount+=1
+          meanStrainLen+=(strainLen-meanStrainLen)/lenCount
+          #if strainLen!=200:print('strainLen',strainLen)
+          if strainLen>198:continue
+          if strainLen<timeLen+cut:continue
+          strain = strain[-timeLen:-1, :4]
+          strain=strain*(256/3.)**(2/3.)
+          #why is factor of 3/2 needed to get I=1 at t=0? It corresponds to R=0.92L/6
+          #times=np.shape(strain)[0]
+          #if times < timeLen:
+          #pad_rows = np.full((200-times, 4), np.nan)
+          #strain = np.vstack((pad_rows, strain))
+          #else:
+          #  strain = strain[-timeLen:]  # trim to last `timeLen` rows
+          count+=1
+          allStrain.append(strain)
+        print(dirName+matrix+region+radStr,'count',count,'meanStrainLen',meanStrainLen)
+        if count==0: return
+        strainData = np.stack(allStrain, axis=0)
+        fig, ax = plt.subplots(1)#, figsize=[columnWid, .6*columnWid])
+        ax.tick_params(which='both', direction='in', top=True, right=True)
+        ax.set_xlabel('$(t-t_b)/t_d$', rotation=0)
+        labels = ['$S_1d^{2/3}\\epsilon^{-1/3}$', r'$S_2$', r'$S_3$']
+        if 'strain' in matrix: 
+          ax.set_ylabel('$\\frac{Sd^{2/3}}{\\epsilon^{1/3}}$', rotation=0, size=20)
+        if 'ReStress' in matrix: ax.set_ylabel('$\\frac{Rd^{2/3}}{\\epsilon^{1/3}}$', rotation=0, size=20)
+        #ax.set_ylim([-.4,.4])
+        ax.set_xlim([-3,0])
+        #stDev = np.sqrt(avgStrainSq - avgStrain**2)
+        p10 = np.nanpercentile(strainData, 25, axis=0)
+        p50 = np.nanpercentile(strainData, 50, axis=0)
+        p90 = np.nanpercentile(strainData, 75, axis=0)
+        m = np.nanmean(strainData, axis=0)
+        std = np.nanstd(strainData, axis=0)
+        #time = np.array([(i-199)*timestep/td for i in range(200)])
+        time = np.array([(i+2-timeLen)*timestep/td for i in range(timeLen-1)])
+        for i in range(1, 4):
+          ax.plot(time, strainData[1,:,i], color=colors[i-1], alpha=.3)
+          ax.plot(time, m[:,i], label=labels[i-1], color=colors[i-1])
+          ax.fill_between(
+            time,p10[:,i],p90[:,i],
+            #time,m[:,i]-std[:,i],m[:,i]+std[:,i],
+            #avgStrain[:, i] - stDev[:, i],
+            #avgStrain[:, i] + stDev[:, i],
+            color=colors[i-1],
+            alpha=0.3,edgecolor='none') 
+        #ax.legend()
+        fname = 'strainPlots/' + dirName + '/' + matrix + region + radStr + '.pdf'
+        directory = os.path.dirname(fname)
+        os.makedirs(directory, exist_ok=True)
+        print('savin ',fname)
+        fig.savefig(fname, bbox_inches='tight', transparent=True, format='pdf', dpi=600)
+        plt.close(fig)
+
 def strainVsTime(): 
-  for matrix in [
-  'MoInDrops'
-  #'strainBoxR021',
-  #'strainFarBoxR021',
-  #'strainSphereR021',
-  #'strainFarSphereR021',
-  #'strainFarModesR021',
-  #'strainBoxR043',
-  #'strainFarBoxR043',
-  #'strainSphereR043',
-  #'strainFarSphereR043',
-  #'strainFarModesR043',
-  #'strainBoxR064',
-  #'strainFarBoxR064',
-  #'strainSphereR064',
-  #'strainFarSphereR064',
-  #'strainFarModesR064',
-  #'strainBoxR085',
-  #'strainFarBoxR085',
-  #'strainSphereR085',
-  #'strainFarSphereR085',
-  #'strainFarModesR085',
-  #'strainBoxR107',
-  #'strainFarBoxR107',
-  #'strainSphereR107',
-  #'strainFarSphereR107',
-  #'strainModes',
-  #'strainFarModesR107'
-   ]:
-    fig, ax = plt.subplots(1)#, figsize=[columnWid, .6*columnWid])
-    ax.tick_params(which='both', direction='in', top=True, right=True)
-    ax.set_xlabel('$(t-t_b)/t_d$', rotation=0)
-    labels = ['$S_1d^{2/3}\\epsilon^{-1/3}$', r'$S_2$', r'$S_3$']
-    if matrix=='MoInDrops': 
-      ax.set_ylabel('$\\frac{I}{60\\rho\\pi d^5}$', rotation=0, size=20, labelpad=15)
-      labels = ['$I_1/I_d$', '$I_2/I_d$', '$I_3/I_d$']
-      labels = ['$I_1/I_d$', '$I_2/I_d$', '$I_3/I_d$']
-      ax.set_ylim([0,10])
-      xC=-2.25
-      yC=8
-      ax.plot([xC-.6,xC+.6],[yC,yC], color=colors[0])
-      ax.plot([xC,xC],[yC-1,yC+1], color=colors[2])
-      x=[]
-      y=[]
-      for phi in np.linspace(0,2*np.pi,100):
-        x.append(xC+.5*np.cos(phi))
-        y.append(yC+.7*np.sin(phi))
-      ax.plot(x,y, color='k')
-    else:
-      ax.set_ylabel('$\\frac{Sd^{2/3}}{\\epsilon^{1/3}}$', rotation=0, size=20)
-      ax.set_ylim([-.4,.4])
-    ax.set_xlim([-3,0])
-    cut=30
-    timeLen=100
-    allStrain = []
-    #avgStrain=np.zeros((timeLen,4))
-    #avgStrainSq=np.zeros((timeLen,4))
-    count=0
-    for i in range(200):
-      fname = f'/home/ianto.cannon/drops/boxStrain/we_05RBy12/run_break_{i:03}/'+matrix+'.txt'
-      try:
-        with open(fname, encoding = 'utf-8') as f:
-          #print('loadin ',fname)
-          strain = np.loadtxt(f)
-      except FileNotFoundError:
-        print(f"File not found: {fname}, skipping.")
-        continue
-      if matrix=='strainModes':
-        strain=strain[4::5,:]
-      strainLen=np.shape(strain)[0]
-      if strainLen>198:continue
-      if strainLen<timeLen+cut:continue
-      strain = strain[-timeLen:-1, :4]
-      if matrix=='MoInDrops': strain=strain*15/8/np.pi/(256/6)**5*3/2
-      else: strain=strain*(256/3.)**(2/3.)
-      #why is factor of 3/2 needed to get I=1 at t=0? It corresponds to R=0.92L/6
-      #times=np.shape(strain)[0]
-      #if times < timeLen:
-      #pad_rows = np.full((200-times, 4), np.nan)
-      #strain = np.vstack((pad_rows, strain))
-      #else:
-      #  strain = strain[-timeLen:]  # trim to last `timeLen` rows
-      count+=1
-      allStrain.append(strain)
-    print('count',count)
-    #stDev = np.sqrt(avgStrainSq - avgStrain**2)
-    strainData = np.stack(allStrain, axis=0)
-    p10 = np.nanpercentile(strainData, 25, axis=0)
-    p50 = np.nanpercentile(strainData, 50, axis=0)
-    p90 = np.nanpercentile(strainData, 75, axis=0)
-    m = np.nanmean(strainData, axis=0)
-    std = np.nanstd(strainData, axis=0)
-    #time = np.array([(i-199)*timestep/td for i in range(200)])
-    time = np.array([(i+2-timeLen)*timestep/td for i in range(timeLen-1)])
-    for i in range(1, 4):
-      ax.plot(time, strainData[1,:,i], color=colors[i-1], alpha=.3)
-      ax.plot(time, m[:,i], label=labels[i-1], color=colors[i-1])
-      ax.fill_between(
-        time,p10[:,i],p90[:,i],
-        #time,m[:,i]-std[:,i],m[:,i]+std[:,i],
-        #avgStrain[:, i] - stDev[:, i],
-        #avgStrain[:, i] + stDev[:, i],
-        color=colors[i-1],
-        alpha=0.3,edgecolor='none') 
-    #ax.legend()
-    fname = 'plots/' + matrix+'EllipseVsTime.pdf'
-    print('savin ',fname)
-    fig.savefig(fname, bbox_inches='tight', transparent=True, format='pdf', dpi=600)
+  for dirName, stat in case.items():
+    print(dirName)
+    plotStrainVsTime(dirName,stat)
   return
 
 def axesLenVsTime(): 
@@ -806,9 +794,9 @@ def strainDiagram():
 #areaVsTime()
 #MoIAlignStrainVsTime()
 #sanBernado()
-#strainVsTime()
+strainVsTime()
 #axesLenVsTime()
-aspectRatioVsTime()
+#aspectRatioVsTime()
 #areaVsTime()
 #areaAllVsTime()
 #strainDiagram()
