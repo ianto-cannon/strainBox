@@ -97,7 +97,7 @@ do k=1,nt(3)
         eikdotx = exp( cmplx(0.0, sum( wavNum(:)*pos(:))))
         do ii = 1,3
           dVeldx(:,ii) = dVeldx(:,ii) + weight * real( cmplx(0.0, wavNum(ii) ) * vel(:) * eikdotx)
-          ReStress(:,ii) = ReStress(:,ii) + weight * real( cmplx(0.0, wavNum(ii) ) * vel(:) * vel(ii) * eikdotx)
+          ReStress(:,ii) = ReStress(:,ii) + weight**2 * real( cmplx(0.0, wavNum(ii) ) * vel(:) * vel(ii) * eikdotx)
         enddo
       endif
     enddo
