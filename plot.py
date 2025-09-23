@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 plt.rcdefaults()
 plt.rcParams.update({"text.usetex": True,'font.size' : 14,})
+plt.rcParams['pdf.fonttype'] = 42
 timestep=.05
 nyqTime=2*timestep
 nu=1 #kinematic viscosity
@@ -742,7 +743,7 @@ def dissVsTime():
     time = np.array([(i+2+cut-case['timeLen'])*timestep/td for i in range(case['timeLen']-cut-1)])
     #ax.plot([-3,0], [np.pi/4,np.pi/4], color='k') #above this aspect ratio, the streching is positive
     #ax.plot(time, strainData[31,:,i], color=colors[3-i])#, alpha=.3)
-    ax.plot(time, m, color=case['col'], label=f"$We={case['WeJfm21']}$")
+    ax.plot(time, m, color=case['col'], label=f"$\\mathrm{We}={case['WeJfm21']}$")
     #ax.fill_between(time,p10,p90,color=case['col'],alpha=0.3,edgecolor='none') 
     ax.fill_between(time, m-std, m+std, color=case['col'],alpha=0.3,edgecolor='none') 
   ax.legend()
@@ -775,7 +776,7 @@ def areaVsTime():
       if False:
         if strainLen<case['timeLen']:continue
         strain = strain[cut-case['timeLen']:-1,2]/4/np.pi/(256./6*.92)**2
-      else: #TODO PAD WITH NAN
+      else:
         if strainLen<2*cut:continue
         strain = strain[cut-case['timeLen']:-1,2]/4/np.pi/(256./6*.92)**2
       count+=1
@@ -796,64 +797,25 @@ def areaVsTime():
   fig.savefig(fname, bbox_inches='tight', transparent=True, format='pdf', dpi=600)
   return
 
-def areaAllVsTime(): 
-  fig, ax = plt.subplots(1, figsize=[6.4*48/70*1.5**.5, 4.8*48/70])
-  print('fig.get_size_inches()',fig.get_size_inches())
-  ax.tick_params(which='both', direction='in', top=True, right=True)
-  ax.set_xlabel('$(t-t_b)/t_d$', rotation=0)
-  #ax.set_ylabel('$\\frac{A}{\\pi d^2}$', rotation=0, size=20, labelpad=10)
-  ax.set_yticklabels([])
-  ax.set_ylim([.95,1.8])
-  ax.set_xlim([-3,0])
-  for dirName, case in reversed(cases.items()):
-    print(dirName)
-    cut=50
-    time = np.array([(i-199)*timestep/td for i in range(200)])
-    allStrain = []
-    count=0
-    for i in range(1000):
-      fname='/home/ianto.cannon/drops/boxStrain/'+dirName+case['output']+f'/run_break_{i:03}/statDrops.txt'
-      try:
-        with open(fname, encoding = 'utf-8') as f:
-          strain = np.loadtxt(f)
-      except FileNotFoundError:
-        #print(f"File not found: {fname}, skipping.")
-        continue
-      strainLen=np.shape(strain)[0]
-      if strainLen>198:continue
-      if strainLen<cut+4:continue
-      strain = strain[cut:,2]/4/np.pi/(256./6*.92)**2
-      #ax.plot(time, strain, color=colors[0], alpha=.3)
-      #ax.plot(time[-1],strain[-1], 'o',color=colors[0], alpha=.3)
-      pad_rows = np.full(200+cut-strainLen, np.nan)
-      strain = np.concatenate((pad_rows,strain))
-      count+=1
-      allStrain.append(strain)
-    print('count',count)
-    if count<5:continue
-    strainData = np.stack(allStrain, axis=0)
-    #time = np.array([i*timestep/td for i in range(200)])
-    l = np.nanpercentile(strainData, 25, axis=0)
-    u = np.nanpercentile(strainData, 75, axis=0)
-    m = np.nanmean(strainData, axis=0)
-    #std = np.nanstd(strainData, axis=0)
-    ax.fill_between(time,l,u,color=case['col'],alpha=0.3,edgecolor='none', label=f"$We={case['WeJfm21']:.1f}$") 
-    ax.plot(time, m[:], color=case['col'])
-  #ax.legend()
-  fname = 'plots/areaAllVsTime.pdf'
-  print('savin ',fname)
-  fig.savefig(fname, bbox_inches='tight', transparent=True, format='pdf', dpi=600)
-  return
-
-def areaVsTimeFrom0(): 
-  fig, ax = plt.subplots(1, figsize=[6.4*48/70/1.5**.5, 4.8*48/70])
-  ax.tick_params(which='both', direction='in', top=True, right=True)
-  ax.set_xlabel('$t/t_d$', rotation=0)
-  ax.set_ylabel('$\\frac{A}{\\pi d^2}$', rotation=0, size=20, labelpad=15)
-  ax.set_ylim([.95,1.8])
-  ax.set_xlim([0,2])
-  time = np.array([i*timestep/td for i in range(200)])
+def areaVsTimePad(): 
+  normByWeber = False
+  fig, ax = plt.subplots(1, 2, figsize=(6.4*100/70,  4.8*50/70), gridspec_kw={'width_ratios': [1, 1.5**0.5]}, sharey=True)
+  fig.subplots_adjust(left=0.1, right=0.95, top=0.95, bottom=0.1, wspace=0.1, hspace=0.05)
+  for a in ax:
+    a.tick_params(which='both', direction='in', top=True, right=True)
+  if normByWeber: 
+    ax[0].set_ylabel('$\\left(\\frac{A}{\\pi d^2}-1\\right)\\frac{1}{\\mathrm{We}}$', size=20)
+    ax[0].set_ylim([0,.3])
+  else: 
+    ax[0].set_ylabel('$\\frac{A}{\\pi d^2}$', rotation=0, size=20, labelpad=15)
+    ax[0].set_ylim([1,2])
+  ax[0].set_xlim([0,2])
+  ax[0].set_xlabel('$t/t_d$', rotation=0)
+  ax[1].set_xlabel('$(t-t_b)/t_d$', rotation=0)
+  ax[1].set_xlim([-3,0])
+  #ax[1].set_xticks([-2.5,-2,-1.5,-1,-.5,0])
   cut=50
+  time = np.array([i*timestep/td for i in range(200)])
   for dirName, case in reversed(cases.items()):
     allStrain = []
     count=0
@@ -867,9 +829,14 @@ def areaVsTimeFrom0():
         continue
       strainLen=np.shape(strain)[0]
       if strainLen<cut+4:continue
-      strain = strain[1:1-cut,2]/4/np.pi/(256./6*.92)**2
+      #strain = strain[:-cut,2]/strain[:-cut,1]**(2/3)/(4*9*np.pi)**(1/3)
+      strain = strain[:,2]/strain[:,1]**(2/3)/(4*9*np.pi)**(1/3)
+      strain /= strain[1]
+      strain = strain[1:1-cut]
+      #strain = strain[1:1-cut,2]/4/np.pi/(256./6*.92)**(2)
       #IC 2025 Sep 21: why does the high surface tension case have smaller initial drop?
-      if 'we_02' in dirName: strain/=0.96596215 
+      #if 'we_02' in dirName: strain/=0.96596215 
+      if normByWeber: strain = ( strain - 1 ) / case['WeJfm21']
       pad_rows = np.full(200+cut-strainLen, np.nan)
       strain = np.concatenate((strain,pad_rows))
       count+=1
@@ -880,24 +847,60 @@ def areaVsTimeFrom0():
     l = np.nanpercentile(strainData, 25, axis=0)
     u = np.nanpercentile(strainData, 75, axis=0)
     m = np.nanmean(strainData, axis=0)
-    lbl=f"$We={case['WeJfm21']:.1f}$"
-    ax.fill_between(time,l,u,color=case['col'],alpha=0.3,edgecolor='none', label=lbl) 
-    ax.plot(time, m, color=case['col'])
-    #print(lbl,m)
-  ax.legend()
-  fname = 'plots/areaVsTimeFrom0.pdf'
+    lbl = rf"$\mathrm{{We}}={case['WeJfm21']:.1f}$"
+    ax[0].fill_between(time,l,u,color=case['col'],alpha=0.3,edgecolor='none', label=lbl) 
+    ax[0].plot(time, m, color=case['col'])
+  time = np.array([(i-199)*timestep/td for i in range(200)])
+  for dirName, case in reversed(cases.items()):
+    print(dirName)
+    allStrain = []
+    count=0
+    for i in range(1000):
+      fname='/home/ianto.cannon/drops/boxStrain/'+dirName+case['output']+f'/run_break_{i:03}/statDrops.txt'
+      try:
+        with open(fname, encoding = 'utf-8') as f:
+          strain = np.loadtxt(f)
+      except FileNotFoundError:
+        continue
+      strainLen=np.shape(strain)[0]
+      if strainLen>198:continue
+      if strainLen<cut+4:continue
+      strain = strain[:,2]/strain[:,1]**(2/3)/(4*9*np.pi)**(1/3)
+      strain /= strain[1]
+      strain = strain[cut:]
+      #strain = strain[cut:,2]/4/np.pi/(256./6*.92)**(2)
+      #if 'we_02' in dirName: strain/=0.96596215 
+      if normByWeber: strain = ( strain - 1 ) / case['WeJfm21']
+      pad_rows = np.full(200+cut-strainLen, np.nan)
+      strain = np.concatenate((pad_rows,strain))
+      count+=1
+      allStrain.append(strain)
+    print('count',count)
+    if count<5:continue
+    strainData = np.stack(allStrain, axis=0)
+    l = np.nanpercentile(strainData, 25, axis=0)
+    u = np.nanpercentile(strainData, 75, axis=0)
+    m = np.nanmean(strainData, axis=0)
+    ax[1].fill_between(time,l,u,color=case['col'],alpha=0.3,edgecolor='none', label=f"$\\mathrm{We}={case['WeJfm21']:.1f}$") 
+    ax[1].plot(time, m[:], color=case['col'])
+  ax[0].legend()
+  fname = 'plots/areaVsTimePad.pdf'
+  #fig.tight_layout()  
   print('savin ',fname)
-  fig.savefig(fname, bbox_inches='tight', transparent=True, format='pdf', dpi=600)
+  fig.savefig(fname, bbox_inches='tight', transparent=True, format='pdf')
   return
 
 def survivalVsTime(): 
-  fig, ax = plt.subplots(1, figsize=[6.4*48/70, 4.8*48/70])
-  ax.tick_params(which='both', direction='in', top=True, right=True)
-  ax.set_xlabel('$t/t_d$', rotation=0)
-  #ax.set_ylabel('$\\frac{N}{N_0}$', rotation=0, size=20, labelpad=15)
-  ax.set_yscale('log')
-  ax.set_xlim([0,6])
-  ax.set_ylim([1e-3,1.5])
+  fig, ax = plt.subplots(1, 2, figsize=(6.4*100/70,  4.8*50/70))
+  fig.subplots_adjust(left=0.1, right=0.95, top=0.95, bottom=0.1, wspace=0.2, hspace=0.05)
+  for a in ax:
+    a.tick_params(which='both', direction='in', top=True, right=True)
+    a.set_xlabel('$t/t_d$', rotation=0)
+    a.set_xlim([0,6])
+  ax[0].set_ylabel('$\\frac{N}{N_0}$', rotation=0, size=20, labelpad=15)
+  ax[0].set_ylim([0,1])
+  ax[1].set_yscale('log')
+  ax[1].set_ylim([1e-3,1])
   time = np.array([i*timestep/td for i in range(200)])
   for dirName, case in (cases.items()):
     allStrain = []
@@ -920,10 +923,14 @@ def survivalVsTime():
     strainData = np.stack(allStrain, axis=0)
     m = np.sum(strainData, axis=0)
     m /= m[0]
-    lbl=f"$We={case['WeJfm21']:.1f}$"
-    ax.plot(time, m, '.', c=case['col'], label=lbl) 
-    #print(lbl,m)
-  ax.legend()
+    rate = 14.8 * np.exp( -2*3.9/case['WeJfm21'] )
+    mask = time < 6
+    for a in ax: a.plot(time[mask], np.exp( rate * (1-time[mask]) ), c=case['col'], zorder=-2) 
+    lbl=f"$\\mathrm{We}={case['WeJfm21']:.1f}$"
+    ax[0].plot(time[mask], m[mask], 'o', c=case['col'], label=lbl, clip_on=False, mfc='None', alpha=.7, zorder=-1) 
+    mask = (m > 0) & (time < 6)
+    ax[1].plot(time[mask], m[mask], 'o', c=case['col'], label=lbl, clip_on=False, mfc='None', alpha=.7, zorder=-1) 
+  ax[1].legend()
   fname = 'plots/survivalVsTime.pdf'
   print('savin ',fname)
   fig.savefig(fname, bbox_inches='tight', transparent=True, format='pdf', dpi=600)
@@ -1139,13 +1146,12 @@ def MoIDotStrainVsDelay():
 #energyVsWaveNumber()
 #surPowFreqVsWaveNumber()
 #areaVsTime()
-areaAllVsTime()
-areaVsTimeFrom0()
-survivalVsTime()
+#areaVsTimePad()
+#survivalVsTime()
 #areaAndForcingVsTime()
 #MoIAlignStrainVsTime()
 #sanBernado()
-#strainVsTime()
+strainVsTime()
 #axesLenVsTime()
 #axesLenVsStrain()
 #aspectRatioVsTime()
