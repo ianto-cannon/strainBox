@@ -168,6 +168,33 @@ do j=1,nt(2)
 enddo
 end subroutine velGBlob
 
+subroutine velGAv(dropVel,blob,vel,velG,dVeldx,ReStress)
+real, intent(in), dimension(3) :: dropVel
+integer, intent(in), dimension(nt(1),nt(2),nt(3)) :: blob
+real, intent(in), dimension(3,nt(1),nt(2),nt(3)) :: vel
+real, intent(in), dimension(3,3,nt(1),nt(2),nt(3)) :: velG
+real, intent(out), dimension(3,3) :: dVeldx, ReStress
+integer :: i,j,k,nVels,jj
+real :: vec(3)
+dVeldx=0.0
+ReStress=0.0
+nVels = 0
+do k=1,nt(3)
+  do j=1,nt(2)
+    do i=1,nt(1)
+      if( blob(i,j,k).ne.0 ) then
+        nVels=nVels+1
+        vec(:) = vel(:,i,j,k) - dropVel(:)
+        dVeldx(:,:) = dVeldx(:,:) + ( velG(:,:,i,j,k) - dVeldx(:,:) ) / nVels
+        do jj=1,3
+          ReStress(:,jj) = ReStress(:,jj) + ( vec(:)*vec(jj) - ReStress(:,jj) ) / nVels
+        enddo
+      endif
+    enddo
+  enddo
+enddo
+end subroutine velGAv
+
 subroutine saveStrain(outDir,domain,time,dVeldx,ReStress)
 character(*), intent(in) :: outDir, domain
 real, intent(in) :: dVeldx(3,3), ReStress(3,3), time

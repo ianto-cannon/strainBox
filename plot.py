@@ -919,7 +919,7 @@ def survivalVsTime():
       strain = np.concatenate((strain,pad_rows))
       count+=1
       allStrain.append(strain)
-    print('count',count)
+    print('count',count,case['WeJfm21'])
     strainData = np.stack(allStrain, axis=0)
     m = np.sum(strainData, axis=0)
     m /= m[0]
@@ -1147,11 +1147,11 @@ def MoIDotStrainVsDelay():
 #surPowFreqVsWaveNumber()
 #areaVsTime()
 #areaVsTimePad()
-#survivalVsTime()
+survivalVsTime()
 #areaAndForcingVsTime()
 #MoIAlignStrainVsTime()
 #sanBernado()
-strainVsTime()
+#strainVsTime()
 #axesLenVsTime()
 #axesLenVsStrain()
 #aspectRatioVsTime()

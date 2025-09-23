@@ -4,7 +4,7 @@ use hdf5
 use, intrinsic :: iso_c_binding
 use mpi
 use modVelGrad, only : nt,l,dx,pi
-use modVelGrad, only : velGBox,velGBlob,velGModes,saveStrain,makeSphere,makeEllipse
+use modVelGrad, only : velGBox,velGBlob,velGAv,velGModes,saveStrain,makeSphere,makeEllipse
 implicit none
 include 'fftw3.f03'
 type ragged_array
@@ -13,6 +13,7 @@ type ragged_array
   character(len=12) :: indexName
 end type ragged_array
 integer,parameter :: maxMom=2
+integer, parameter :: kAlias=int( (2.0/3.0) * (nt(3)/2) )
 character(len=200) :: filename, runName, weName='we_05/', inDir, outDir, fileEnd, str
 integer :: i,j,k,ip,jp,kp,iq,jq,kq,iShifted,mom,ii,jj,im,jm,km
 integer :: cols,paintIt,faceOnCorner,genus,onInt,error,ios,rank,ntask
@@ -24,15 +25,17 @@ integer, dimension(3)  :: last0,last1,pos
 integer(hid_t) :: file_id, dset_id
 integer(hsize_t) :: dims(3)=(/nt(1),nt(2),nt(3)/),  dims1d(1)=(/1/) 
 real, dimension(maxMom,3) :: dropVel
-real, dimension(3) :: MoIEiVals,dropPos,farPos
+real, dimension(3) :: MoIEiVals,dropPos,farPos,wavNum
 real, dimension(3,3) :: MoI, dVeldx, ReStress
 real, dimension(nt(1),nt(2),nt(3)) :: kur,u,v,w,phase
 real, dimension(3,nt(1),nt(2),nt(3)) :: nor, vel
+real, dimension(3,3,nt(1),nt(2),nt(3)) :: velG
 real :: diag,deformation,dropArea,dA,Cn,r,time,work(8),We,res
 real :: maxNor,kurMean,kurStdDev,kurInv,kurInvSq,invSize,modnor
 complex, dimension(nt(1)/2+1,nt(2),nt(3)) :: uHat,vHat,wHat
+complex, dimension(3,3,nt(1)/2+1,nt(1),nt(1)) :: velGHat
 type(ragged_array) :: hist(3) !histogram of drop mass in x, y and z directions
-type(C_PTR)  :: plan
+type(C_PTR)  :: plan, plan_inverse
 call mpi_init(error)
 call mpi_comm_rank(mpi_comm_world,rank,error)
 call mpi_comm_size(mpi_comm_world,ntask,error)
@@ -45,6 +48,7 @@ hist(1)%indexName='1'
 hist(2)%indexName='2'
 hist(3)%indexName='3'
 plan        =fftwf_plan_dft_r2c_3d(nt(3), nt(2), nt(1), u, uHat, FFTW_ESTIMATE)
+plan_inverse=fftwf_plan_dft_c2r_3d(nt(3), nt(2), nt(1), uHat, u, FFTW_ESTIMATE)
 if (rank.eq.0) call system('ls /home/alberto.velamartin/drop_time/'//trim(weName)//&
                             '/ > dir_list.txt')
 call mpi_barrier(mpi_comm_world,error)
@@ -453,8 +457,37 @@ do
     call fftwf_execute_dft_r2c(plan, u, uHat)
     call fftwf_execute_dft_r2c(plan, v, vHat)
     call fftwf_execute_dft_r2c(plan, w, wHat)
+
+    velGHat = cmplx(0.0,0.0)
+    do k=1,nt(3)
+       km = k-1
+       if (km.gt.nt(3)/2) km=km-nt(3)
+       if (abs(km).gt.kAlias) cycle
+       wavNum(3) = km*2*pi/l
+       do j=1,nt(2)
+          jm = j-1
+          if (jm.gt.nt(2)/2) jm=jm-nt(2)
+          if (abs(jm).gt.kAlias) cycle
+          wavNum(2) = jm*2*pi/l
+          do i=1,nt(1)/2+1
+             if (i-1.gt.kAlias) cycle
+             wavNum(1) = (i-1)*2*pi/l
+             velGHat(1,:,i,j,k) = (0.0,1.0)*wavNum(:)*uHat(i,j,k)/nt(1)*nt(2)*nt(3)
+             velGHat(2,:,i,j,k) = (0.0,1.0)*wavNum(:)*vHat(i,j,k)/nt(1)*nt(2)*nt(3)
+             velGHat(3,:,i,j,k) = (0.0,1.0)*wavNum(:)*wHat(i,j,k)/nt(1)*nt(2)*nt(3)
+          enddo
+       enddo
+    enddo
+    do ii=1,3
+       do jj=1,3
+          call fftwf_execute_dft_c2r(plan_inverse, velGHat(ii,jj,:,:,:), velG(ii,jj,:,:,:))
+       end do
+    end do
+
     call velGBlob(drop,vel,dVeldx,ReStress)
     call saveStrain(outDir,'Drop',time,dVeldx,ReStress)
+    call velGAv(dropVel(1,:),drop,vel,velG,dVeldx,ReStress)
+    call saveStrain(outDir,'DropAv',time,dVeldx,ReStress)
     !do k=1,250
     !  write(veloU,'(256ES16.7E3)') drop(:,k,100)*1.
     !enddo
@@ -472,6 +505,8 @@ do
       call makeSphere(dropPos,r,drop)
       call velGBlob(drop,vel,dVeldx,ReStress)
       call saveStrain(outDir,'SphereR'//trim(filename),time,dVeldx,ReStress)
+      call velGAv(dropVel(1,:),drop,vel,velG,dVeldx,ReStress)
+      call saveStrain(outDir,'SphereAvR',time,dVeldx,ReStress)
       call makeSphere(farPos,r,drop)
       call velGBlob(drop,vel,dVeldx,ReStress)
       call saveStrain(outDir,'FarSphereR'//trim(filename),time,dVeldx,ReStress)
