@@ -59,7 +59,7 @@ do
   str = trim( runName(11:) )
   read( str , *) runNum
   if ( modulo( runNum, ntask ) .ne. rank) cycle
-  !if ( runNum .ne. 0) cycle
+  if ( runNum .ne. 0) cycle
   inDir='/home/alberto.velamartin/drop_time/'//trim(weName)//trim(runName)
   outDir='output/'//trim(runName)//'/'
   !outDir='output/'
@@ -463,15 +463,15 @@ do
        km = k-1
        if (km.gt.nt(3)/2) km=km-nt(3)
        if (abs(km).gt.kAlias) cycle
-       wavNum(3) = km*2*pi/l
+       wavNum(3) = km*2*pi/l(3)
        do j=1,nt(2)
           jm = j-1
           if (jm.gt.nt(2)/2) jm=jm-nt(2)
           if (abs(jm).gt.kAlias) cycle
-          wavNum(2) = jm*2*pi/l
+          wavNum(2) = jm*2*pi/l(2)
           do i=1,nt(1)/2+1
              if (i-1.gt.kAlias) cycle
-             wavNum(1) = (i-1)*2*pi/l
+             wavNum(1) = (i-1)*2*pi/l(1)
              velGHat(1,:,i,j,k) = (0.0,1.0)*wavNum(:)*uHat(i,j,k)/nt(1)*nt(2)*nt(3)
              velGHat(2,:,i,j,k) = (0.0,1.0)*wavNum(:)*vHat(i,j,k)/nt(1)*nt(2)*nt(3)
              velGHat(3,:,i,j,k) = (0.0,1.0)*wavNum(:)*wHat(i,j,k)/nt(1)*nt(2)*nt(3)
@@ -487,7 +487,7 @@ do
     call velGBlob(drop,vel,dVeldx,ReStress)
     call saveStrain(outDir,'Drop',time,dVeldx,ReStress)
     call velGAv(dropVel(1,:),drop,vel,velG,dVeldx,ReStress)
-    call saveStrain(outDir,'DropAv',time,dVeldx,ReStress)
+    call saveStrain(outDir,'DropAv'//trim(filename),time,dVeldx,ReStress)
     !do k=1,250
     !  write(veloU,'(256ES16.7E3)') drop(:,k,100)*1.
     !enddo
@@ -506,7 +506,7 @@ do
       call velGBlob(drop,vel,dVeldx,ReStress)
       call saveStrain(outDir,'SphereR'//trim(filename),time,dVeldx,ReStress)
       call velGAv(dropVel(1,:),drop,vel,velG,dVeldx,ReStress)
-      call saveStrain(outDir,'SphereAvR',time,dVeldx,ReStress)
+      call saveStrain(outDir,'SphereAvR'//trim(filename),time,dVeldx,ReStress)
       call makeSphere(farPos,r,drop)
       call velGBlob(drop,vel,dVeldx,ReStress)
       call saveStrain(outDir,'FarSphereR'//trim(filename),time,dVeldx,ReStress)
