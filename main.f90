@@ -472,9 +472,9 @@ do
           do i=1,nt(1)/2+1
              if (i-1.gt.kAlias) cycle
              wavNum(1) = (i-1)*2*pi/l(1)
-             velGHat(1,:,i,j,k) = (0.0,1.0)*wavNum(:)*uHat(i,j,k)/nt(1)*nt(2)*nt(3)
-             velGHat(2,:,i,j,k) = (0.0,1.0)*wavNum(:)*vHat(i,j,k)/nt(1)*nt(2)*nt(3)
-             velGHat(3,:,i,j,k) = (0.0,1.0)*wavNum(:)*wHat(i,j,k)/nt(1)*nt(2)*nt(3)
+             velGHat(1,:,i,j,k) = (0.0,1.0)*wavNum(:)*uHat(i,j,k)/nt(1)/nt(2)/nt(3)
+             velGHat(2,:,i,j,k) = (0.0,1.0)*wavNum(:)*vHat(i,j,k)/nt(1)/nt(2)/nt(3)
+             velGHat(3,:,i,j,k) = (0.0,1.0)*wavNum(:)*wHat(i,j,k)/nt(1)/nt(2)/nt(3)
           enddo
        enddo
     enddo
