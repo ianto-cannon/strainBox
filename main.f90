@@ -59,7 +59,7 @@ do
   str = trim( runName(11:) )
   read( str , *) runNum
   if ( modulo( runNum, ntask ) .ne. rank) cycle
-  if ( runNum .ne. 0) cycle
+  !if ( runNum .ne. 0) cycle
   inDir='/home/alberto.velamartin/drop_time/'//trim(weName)//trim(runName)
   outDir='output/'//trim(runName)//'/'
   !outDir='output/'
@@ -487,7 +487,7 @@ do
     call velGBlob(drop,vel,dVeldx,ReStress)
     call saveStrain(outDir,'Drop',time,dVeldx,ReStress)
     call velGAv(dropVel(1,:),drop,vel,velG,dVeldx,ReStress)
-    call saveStrain(outDir,'DropAv'//trim(filename),time,dVeldx,ReStress)
+    call saveStrain(outDir,'DropAv',time,dVeldx,ReStress)
     !do k=1,250
     !  write(veloU,'(256ES16.7E3)') drop(:,k,100)*1.
     !enddo
