@@ -553,70 +553,49 @@ def strainVsTime():
    return
 
 def strainAvVsTime(): 
+  time = np.array([(i-199)*timestep/td for i in range(200)])
+  cut=30
   for dirName, case in cases.items():
     print(dirName)
     import os
-    cut=30
-    timeLen=100
     for rad in [64,85,107]:
       radStr=f'{rad:03}'
       allStrain = []
       count=0
-      lenCount=0
-      meanStrainLen=0
-      for i in range(10):#1000):
+      for i in range(1000):
         fname='/home/ianto.cannon/drops/boxStrain/'+dirName+'velGAv/output'+f'/run_break_{i:03}/strain/SphereAvR'+radStr+'.txt'
         try:
           with open(fname, encoding = 'utf-8') as f:
-            print('loadin ',fname)
             strain = np.loadtxt(f)
-        except FileNotFoundError:
-          continue
+        except FileNotFoundError: continue
         strainLen=np.shape(strain)[0]
-        lenCount+=1
-        meanStrainLen+=(strainLen-meanStrainLen)/lenCount
-        if strainLen>198:continue
-        if strainLen<timeLen+cut:continue
-        strain = strain[-timeLen:-1, :4]
-        strain=strain*(256/3.)**(2/3.)
-        #why is factor of 3/2 needed to get I=1 at t=0? It corresponds to R=0.92L/6
-        #times=np.shape(strain)[0]
-        #if times < timeLen:
-        #pad_rows = np.full((200-times, 4), np.nan)
-        #strain = np.vstack((pad_rows, strain))
-        #else:
-        #  strain = strain[-timeLen:]  # trim to last `timeLen` rows
+        if strainLen>198: continue
+        if strainLen<cut+4: continue
+        strain = strain[cut:, :4]
+        #I forgot to normalise the FFT in fortran
+        if '05' in dirName: strain/=256**4
+        pad_rows = np.full([200+cut-strainLen,4], np.nan)
+        strain = np.concatenate((pad_rows,strain))
         count+=1
         allStrain.append(strain)
-      print(dirName+radStr,'count',count,'meanStrainLen',meanStrainLen)
+      print(fname)
+      print(f"count {count}")
       if count==0: 
-        print(f"count is {count}: {fname}, skipping.")
+        print("skipping")
         continue
       strainData = np.stack(allStrain, axis=0)
-      fig, ax = plt.subplots(1)#, figsize=[columnWid, .6*columnWid])
+      fig, ax = plt.subplots(1)
       ax.tick_params(which='both', direction='in', top=True, right=True)
       ax.set_xlabel('$(t-t_b)/t_d$', rotation=0)
-      labels = ['$S_1d^{2/3}\\epsilon^{-1/3}$', r'$S_2$', r'$S_3$']
-      ax.set_ylabel('$\\frac{S^2}{\\epsilon}$', rotation=0, size=20)
+      ax.set_ylabel('$S\\sqrt{\\nu/\\epsilon}$')#, rotation=0, size=20)
       ax.set_xlim([-3,0])
-      p10 = np.nanpercentile(strainData, 25, axis=0)
-      p50 = np.nanpercentile(strainData, 50, axis=0)
-      p90 = np.nanpercentile(strainData, 75, axis=0)
+      l = np.nanpercentile(strainData, 25, axis=0)
+      u = np.nanpercentile(strainData, 75, axis=0)
       m = np.nanmean(strainData, axis=0)
-      std = np.nanstd(strainData, axis=0)
-      #time = np.array([(i-199)*timestep/td for i in range(200)])
-      time = np.array([(i+2-timeLen)*timestep/td for i in range(timeLen-1)])
-      #for i in range(1, 4):
-      for i in range(1, 2):
-        #ax.plot(time, strainData[1,:,i], color=colors[i-1], alpha=.3)
-        ax.plot(time, m[:,i], label=labels[i-1], color=colors[i-1])
-        ax.fill_between(
-          time,p10[:,i],p90[:,i],
-          #time,m[:,i]-std[:,i],m[:,i]+std[:,i],
-          #avgStrain[:, i] - stDev[:, i],
-          #avgStrain[:, i] + stDev[:, i],
-          color=colors[i-1],
-          alpha=0.3,edgecolor='none') 
+      lbl = rf"$\mathrm{{We}}={case['WeJfm21']:.1f}$"
+      for i in range(1, 4):
+        ax.fill_between( time, l[:,i], u[:,i], color=colors[i-1], alpha=0.3, edgecolor='none', label=lbl) 
+        ax.plot(time, m[:,i], color=colors[i-1])
       ax.legend()
       fname = 'dissAvPlots/' + dirName + '/' + radStr + '.pdf'
       directory = os.path.dirname(fname)
