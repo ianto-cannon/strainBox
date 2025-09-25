@@ -6,8 +6,6 @@ plt.rcParams['pdf.fonttype'] = 42
 timestep=.05
 nyqTime=2*timestep
 nu=1 #kinematic viscosity
-We=.05
-rho=We
 sigma=2*2**.5/3
 diam=2*np.pi/3
 vis=.219 #from measurements of rmsVel and Re_lambda=58
@@ -539,7 +537,7 @@ def plotStrainVsTime(dirName,case):
             color=colors[i-1],
             alpha=0.3,edgecolor='none') 
         #ax.legend()
-        fname = 'dissPlots/' + dirName + '/' + matrix + region + radStr + '.pdf'
+        fname = 'plots/dissPlots/' + dirName + '/' + matrix + region + radStr + '.pdf'
         directory = os.path.dirname(fname)
         os.makedirs(directory, exist_ok=True)
         print('savin ',fname)
@@ -553,56 +551,207 @@ def strainVsTime():
    return
 
 def strainAvVsTime(): 
+  fig, ax = plt.subplots(1)
+  ax.tick_params(which='both', direction='in', top=True, right=True)
+  ax.set_xlabel('$(t-t_b)/t_d$', rotation=0)
+  ax.set_ylabel('$S\\sqrt{\\nu/\\epsilon}$')#, rotation=0, size=20)
+  ax.set_xlim([-3,0])
+  rad=85
   time = np.array([(i-199)*timestep/td for i in range(200)])
-  cut=30
+  cut=50
   for dirName, case in cases.items():
     print(dirName)
-    import os
-    for rad in [64,85,107]:
-      radStr=f'{rad:03}'
-      allStrain = []
-      count=0
-      for i in range(1000):
-        fname='/home/ianto.cannon/drops/boxStrain/'+dirName+'velGAv/output'+f'/run_break_{i:03}/strain/SphereAvR'+radStr+'.txt'
-        try:
-          with open(fname, encoding = 'utf-8') as f:
-            strain = np.loadtxt(f)
-        except FileNotFoundError: continue
-        strainLen=np.shape(strain)[0]
-        if strainLen>198: continue
-        if strainLen<cut+4: continue
-        strain = strain[cut:, :4]
-        #I forgot to normalise the FFT in fortran
-        if '05' in dirName: strain/=256**4
-        pad_rows = np.full([200+cut-strainLen,4], np.nan)
-        strain = np.concatenate((pad_rows,strain))
-        count+=1
-        allStrain.append(strain)
-      print(fname)
-      print(f"count {count}")
-      if count==0: 
-        print("skipping")
-        continue
-      strainData = np.stack(allStrain, axis=0)
-      fig, ax = plt.subplots(1)
-      ax.tick_params(which='both', direction='in', top=True, right=True)
-      ax.set_xlabel('$(t-t_b)/t_d$', rotation=0)
-      ax.set_ylabel('$S\\sqrt{\\nu/\\epsilon}$')#, rotation=0, size=20)
-      ax.set_xlim([-3,0])
-      l = np.nanpercentile(strainData, 25, axis=0)
-      u = np.nanpercentile(strainData, 75, axis=0)
-      m = np.nanmean(strainData, axis=0)
-      lbl = rf"$\mathrm{{We}}={case['WeJfm21']:.1f}$"
-      for i in range(1, 4):
-        ax.fill_between( time, l[:,i], u[:,i], color=colors[i-1], alpha=0.3, edgecolor='none', label=lbl) 
-        ax.plot(time, m[:,i], color=colors[i-1])
-      ax.legend()
-      fname = 'dissAvPlots/' + dirName + '/' + radStr + '.pdf'
-      directory = os.path.dirname(fname)
-      os.makedirs(directory, exist_ok=True)
-      print('savin ',fname)
-      fig.savefig(fname, bbox_inches='tight', transparent=True, format='pdf', dpi=600)
-      plt.close(fig)
+    radStr=f'{rad:03}'
+    allStrain = []
+    count=0
+    for i in range(1000):
+      fname='/home/ianto.cannon/drops/boxStrain/'+dirName+'velGAv/output'+f'/run_break_{i:03}/strain/SphereAvR'+radStr+'.txt'
+      try:
+        with open(fname, encoding = 'utf-8') as f:
+          strain = np.loadtxt(f)
+      except FileNotFoundError: continue
+      strainLen=np.shape(strain)[0]
+      if strainLen>198: continue
+      if strainLen<cut+4: continue
+      strain = strain[cut:, :4]
+      #I forgot to normalise the FFT in fortran
+      if '05' in dirName: strain/=256**4
+      pad_rows = np.full([200+cut-strainLen,4], np.nan)
+      strain = np.concatenate((pad_rows,strain))
+      count+=1
+      allStrain.append(strain)
+    print(fname)
+    print(f"count {count}")
+    if count==0: 
+      print("skipping")
+      continue
+    strainData = np.stack(allStrain, axis=0)
+    l = np.nanpercentile(strainData, 25, axis=0)
+    u = np.nanpercentile(strainData, 75, axis=0)
+    m = np.nanmean(strainData, axis=0)
+    lbl = rf"$\mathrm{{We}}={case['WeJfm21']:.1f}$"
+    ax.fill_between( time, l[:,1], u[:,1], color=case['col'], alpha=0.3, edgecolor='none', label=lbl) 
+    for i in range(1, 4):
+      if i>1:ax.fill_between( time, l[:,i], u[:,i], color=case['col'], alpha=0.3, edgecolor='none') 
+      ax.plot(time, m[:,i], color=case['col'])
+  ax.legend()
+  fname = 'plots/dissAvPlots/strainAvVsTime.pdf'
+  print('savin ',fname)
+  fig.savefig(fname, bbox_inches='tight', transparent=True, format='pdf', dpi=600)
+  return
+
+def QRVsTime(): 
+  fig, ax = plt.subplots(1, 2, figsize=(6.4*100/70,  4.8*50/70))
+  fig.subplots_adjust(left=0.1, right=0.95, top=0.95, bottom=0.1, wspace=0.2, hspace=0.05)
+  for a in ax:
+    a.tick_params(which='both', direction='in', top=True, right=True)
+    a.set_xlabel('$(t-t_b)/t_d$', rotation=0)
+    a.set_xlim([-3,0])
+  ax[0].set_ylabel('$\\frac{Q\\nu}{\\epsilon}$', rotation=0, size=20)
+  ax[1].set_ylabel('$\\frac{R\\nu^{3/2}}{\\epsilon^{3/2}}$', rotation=0, size=20)
+  rad=85
+  time = np.array([(i-199)*timestep/td for i in range(200)])
+  cut=50
+  for dirName, case in cases.items():
+    print(dirName)
+    radStr=f'{rad:03}'
+    allStrain = []
+    count=0
+    for i in range(1000):
+      fname='/home/ianto.cannon/drops/boxStrain/'+dirName+'velGAv/output'+f'/run_break_{i:03}/dVeldx/SphereAvR'+radStr+'.txt'
+      try:
+        with open(fname, encoding = 'utf-8') as f:
+          strain = np.loadtxt(f)
+      except FileNotFoundError: continue
+      strainLen=np.shape(strain)[0]
+      if strainLen>198: continue
+      if strainLen<cut+4: continue
+      strain = strain[cut:, :3]
+      #I forgot to normalise the FFT in fortran
+      if '05' in dirName: 
+        strain[:,1]/=256**(4*2)
+        strain[:,2]/=256**(4*3)
+      pad_rows = np.full([200+cut-strainLen, 3], np.nan)
+      strain = np.concatenate((pad_rows,strain))
+      count+=1
+      allStrain.append(strain)
+    print(fname)
+    print(f"count {count}")
+    if count==0: 
+      print("skipping")
+      continue
+    strainData = np.stack(allStrain, axis=0)
+    l = np.nanpercentile(strainData, 25, axis=0)
+    u = np.nanpercentile(strainData, 75, axis=0)
+    m = np.nanmean(strainData, axis=0)
+    lbl = rf"$\mathrm{{We}}={case['WeJfm21']:.1f}$"
+    ax[0].fill_between(time, l[:,1], u[:,1], color=case['col'], alpha=0.3, edgecolor='none', label=lbl) 
+    for i in range(1, 3):
+      if i>1:ax[i-1].fill_between( time, l[:,i], u[:,i], color=case['col'], alpha=0.3, edgecolor='none') 
+      ax[i-1].plot(time, m[:,i], color=case['col'])
+  ax[0].legend()
+  fname = 'plots/QRVsTime.pdf'
+  print('savin ',fname)
+  fig.savefig(fname, bbox_inches='tight', transparent=True, format='pdf', dpi=600)
+  return
+
+def vortVsTime(): 
+  fig, ax = plt.subplots(1)
+  ax.tick_params(which='both', direction='in', top=True, right=True)
+  ax.set_xlabel('$(t-t_b)/t_d$', rotation=0)
+  ax.set_ylabel('$\\frac{\\omega^2\\nu}{\\epsilon}$', rotation=0, size=20)
+  ax.set_xlim([-3,0])
+  rad=85
+  time = np.array([(i-199)*timestep/td for i in range(200)])
+  cut=50
+  for dirName, case in cases.items():
+    print(dirName)
+    radStr=f'{rad:03}'
+    allStrain = []
+    count=0
+    for i in range(1000):
+      fname='/home/ianto.cannon/drops/boxStrain/'+dirName+'velGAv/output'+f'/run_break_{i:03}/vortic/SphereAvR'+radStr+'.txt'
+      try:
+        with open(fname, encoding = 'utf-8') as f:
+          strain = np.loadtxt(f)
+      except FileNotFoundError: continue
+      strainLen=np.shape(strain)[0]
+      if strainLen>198: continue
+      if strainLen<cut+4: continue
+      strain = strain[cut:,1]**2 + strain[cut:,2]**2 + strain[cut:,3]**2
+      #I forgot to normalise the FFT in fortran
+      if '05' in dirName: 
+        strain/=256**(4*2)
+      pad_rows = np.full(200+cut-strainLen, np.nan)
+      strain = np.concatenate((pad_rows,strain))
+      count+=1
+      allStrain.append(strain)
+    print(fname)
+    print(f"count {count}")
+    if count==0: 
+      print("skipping")
+      continue
+    strainData = np.stack(allStrain, axis=0)
+    l = np.nanpercentile(strainData, 25, axis=0)
+    u = np.nanpercentile(strainData, 75, axis=0)
+    m = np.nanmean(strainData, axis=0)
+    lbl = rf"$\mathrm{{We}}={case['WeJfm21']:.1f}$"
+    ax.fill_between(time, l, u, color=case['col'], alpha=0.3, edgecolor='none', label=lbl) 
+    ax.plot(time, m, color=case['col'])
+  ax.legend()
+  fname = 'plots/vortVsTime.pdf'
+  print('savin ',fname)
+  fig.savefig(fname, bbox_inches='tight', transparent=True, format='pdf', dpi=600)
+  return
+
+def energyVsTime(): 
+  fig, ax = plt.subplots(1)
+  ax.tick_params(which='both', direction='in', top=True, right=True)
+  ax.set_xlabel('$(t-t_b)/t_d$', rotation=0)
+  ax.set_ylabel('$E$', rotation=0)#, size=20)
+  #ax.set_xlim([-3,0])
+  rad=85
+  #time = np.array([(i-199)*timestep/td for i in range(200)])
+  time = np.array([i*timestep/td for i in range(200)])
+  cut=50
+  for dirName, case in cases.items():
+    print(dirName)
+    radStr=f'{rad:03}'
+    allStrain = []
+    count=0
+    for i in range(1000):
+      fname='/home/ianto.cannon/drops/boxStrain/'+dirName+'velGAv/output'+f'/run_break_{i:03}/ReStress/SphereAvR'+radStr+'.txt'
+      try:
+        with open(fname, encoding = 'utf-8') as f:
+          strain = np.loadtxt(f)
+      except FileNotFoundError: continue
+      strainLen=np.shape(strain)[0]
+      #if strainLen>198: continue
+      #if strainLen<cut+4: continue
+      #strain = 0.5*case['rho']**0*( strain[cut:,1] + strain[cut:,2] + strain[cut:,3] )
+      #pad_rows = np.full(200+cut-strainLen, np.nan)
+      #strain = np.concatenate((pad_rows,strain))
+      strain = 0.5*case['rho']**0*( strain[:,1] + strain[:,2] + strain[:,3] )
+      pad_rows = np.full(200-strainLen, np.nan)
+      strain = np.concatenate((strain,pad_rows))
+      count+=1
+      allStrain.append(strain)
+    print(fname)
+    print(f"count {count}")
+    if count==0: 
+      print("skipping")
+      continue
+    strainData = np.stack(allStrain, axis=0)
+    l = np.nanpercentile(strainData, 25, axis=0)
+    u = np.nanpercentile(strainData, 75, axis=0)
+    m = np.nanmean(strainData, axis=0)
+    lbl = rf"$\mathrm{{We}}={case['WeJfm21']:.1f}$"
+    ax.fill_between(time, l, u, color=case['col'], alpha=0.3, edgecolor='none', label=lbl) 
+    ax.plot(time, m, color=case['col'])
+  ax.legend()
+  fname = 'plots/energyVsTime.pdf'
+  print('savin ',fname)
+  fig.savefig(fname, bbox_inches='tight', transparent=True, format='pdf', dpi=600)
   return
 
 def axesLenVsTime(): 
@@ -1205,7 +1354,10 @@ def MoIDotStrainVsDelay():
 #MoIAlignStrainVsTime()
 #sanBernado()
 #strainVsTime()
-strainAvVsTime()
+#strainAvVsTime()
+#QRVsTime()
+vortVsTime()
+energyVsTime()
 #axesLenVsTime()
 #axesLenVsStrain()
 #aspectRatioVsTime()

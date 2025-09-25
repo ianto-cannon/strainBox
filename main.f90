@@ -510,8 +510,10 @@ do
       call makeSphere(farPos,r,drop)
       call velGBlob(drop,vel,dVeldx,ReStress)
       call saveStrain(outDir,'FarSphereR'//trim(filename),time,dVeldx,ReStress)
+      call velGAv(dropVel(1,:)*0.0,drop,vel,velG,dVeldx,ReStress)
+      call saveStrain(outDir,'FarSphereAvR'//trim(filename),time,dVeldx,ReStress)
       call velGModes(dropPos,r,uHat,vHat,wHat,dVeldx,ReStress)
-      call saveStrain(outDir,'Modes'//trim(filename),time,dVeldx,ReStress)
+      call saveStrain(outDir,'ModesR'//trim(filename),time,dVeldx,ReStress)
       call velGModes(farPos,r,uHat,vHat,wHat,dVeldx,ReStress)
       call saveStrain(outDir,'FarModesR'//trim(filename),time,dVeldx,ReStress)
     enddo
