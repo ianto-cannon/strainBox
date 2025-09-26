@@ -23,7 +23,6 @@ for dirName, case in cases.items():
   case['WeJfm21'] = case['We']*3.63/.1
   case['tsig'] = ( case['rho'] * diam**3 / sigma ) **.5
   case['Oh'] = nu * case['rho']**.5  / ( diam * sigma) ** .5
-  print(dirName, 'Oh', case['Oh'])
 
 def areaAndForcingVsTime(): 
   fig, ax = plt.subplots(1)#, figsize=[columnWid, .6*columnWid])
@@ -579,8 +578,8 @@ def strainAvVsTime():
       pad_rows = np.full([200+cut-strainLen,4], np.nan)
       strain = np.concatenate((pad_rows,strain))
       count+=1
+      if count==1: print(fname)
       allStrain.append(strain)
-    print(fname)
     print(f"count {count}")
     if count==0: 
       print("skipping")
@@ -634,8 +633,8 @@ def QRVsTime():
       pad_rows = np.full([200+cut-strainLen, 3], np.nan)
       strain = np.concatenate((pad_rows,strain))
       count+=1
+      if count==1: print(fname)
       allStrain.append(strain)
-    print(fname)
     print(f"count {count}")
     if count==0: 
       print("skipping")
@@ -686,7 +685,7 @@ def vortVsTime():
       strain = np.concatenate((pad_rows,strain))
       count+=1
       allStrain.append(strain)
-    print(fname)
+      if count==1: print(fname)
     print(f"count {count}")
     if count==0: 
       print("skipping")
@@ -709,10 +708,9 @@ def energyVsTime():
   ax.tick_params(which='both', direction='in', top=True, right=True)
   ax.set_xlabel('$(t-t_b)/t_d$', rotation=0)
   ax.set_ylabel('$E$', rotation=0)#, size=20)
-  #ax.set_xlim([-3,0])
+  ax.set_xlim([-3,0])
   rad=85
-  #time = np.array([(i-199)*timestep/td for i in range(200)])
-  time = np.array([i*timestep/td for i in range(200)])
+  time = np.array([(i-199)*timestep/td for i in range(200)])
   cut=50
   for dirName, case in cases.items():
     print(dirName)
@@ -726,17 +724,14 @@ def energyVsTime():
           strain = np.loadtxt(f)
       except FileNotFoundError: continue
       strainLen=np.shape(strain)[0]
-      #if strainLen>198: continue
-      #if strainLen<cut+4: continue
-      #strain = 0.5*case['rho']**0*( strain[cut:,1] + strain[cut:,2] + strain[cut:,3] )
-      #pad_rows = np.full(200+cut-strainLen, np.nan)
-      #strain = np.concatenate((pad_rows,strain))
-      strain = 0.5*case['rho']**0*( strain[:,1] + strain[:,2] + strain[:,3] )
-      pad_rows = np.full(200-strainLen, np.nan)
-      strain = np.concatenate((strain,pad_rows))
+      if strainLen>198: continue
+      if strainLen<cut+4: continue
+      strain = 0.5*case['rho']**0*( strain[cut:,1] + strain[cut:,2] + strain[cut:,3] )
+      pad_rows = np.full(200+cut-strainLen, np.nan)
+      strain = np.concatenate((pad_rows,strain))
       count+=1
+      if count==1: print(fname)
       allStrain.append(strain)
-    print(fname)
     print(f"count {count}")
     if count==0: 
       print("skipping")
@@ -1000,6 +995,7 @@ def areaVsTime():
   return
 
 def areaVsTimePad(): 
+  print('areaVsTimePad')
   normByWeber = False
   fig, ax = plt.subplots(1, 2, figsize=(6.4*100/70,  4.8*50/70), gridspec_kw={'width_ratios': [1, 1.5**0.5]}, sharey=True)
   fig.subplots_adjust(left=0.1, right=0.95, top=0.95, bottom=0.1, wspace=0.1, hspace=0.05)
@@ -1022,7 +1018,8 @@ def areaVsTimePad():
     allStrain = []
     count=0
     for i in range(1000):
-      fname='/home/ianto.cannon/drops/boxStrain/'+dirName+case['output']+f'/run_break_{i:03}/statDrops.txt'
+      #fname='/home/ianto.cannon/drops/boxStrain/'+dirName+case['output']+f'/run_break_{i:03}/statDrops.txt'
+      fname='/home/ianto.cannon/drops/boxStrain/'+dirName+'velGAv/output'+f'/run_break_{i:03}/statDrops.txt'
       if i==0: print(fname)
       try:
         with open(fname, encoding = 'utf-8') as f:
@@ -1083,11 +1080,11 @@ def areaVsTimePad():
     l = np.nanpercentile(strainData, 25, axis=0)
     u = np.nanpercentile(strainData, 75, axis=0)
     m = np.nanmean(strainData, axis=0)
-    ax[1].fill_between(time,l,u,color=case['col'],alpha=0.3,edgecolor='none', label=f"$\\mathrm{We}={case['WeJfm21']:.1f}$") 
+    lbl = rf"$\mathrm{{We}}={case['WeJfm21']:.1f}$"
+    ax[1].fill_between(time,l,u,color=case['col'],alpha=0.3,edgecolor='none', label=lbl) 
     ax[1].plot(time, m[:], color=case['col'])
   ax[0].legend()
   fname = 'plots/areaVsTimePad.pdf'
-  #fig.tight_layout()  
   print('savin ',fname)
   fig.savefig(fname, bbox_inches='tight', transparent=True, format='pdf')
   return
@@ -1128,7 +1125,7 @@ def survivalVsTime():
     rate = 14.8 * np.exp( -2*3.9/case['WeJfm21'] )
     mask = time < 6
     for a in ax: a.plot(time[mask], np.exp( rate * (1-time[mask]) ), c=case['col'], zorder=-2) 
-    lbl=f"$\\mathrm{We}={case['WeJfm21']:.1f}$"
+    lbl = rf"$\mathrm{{We}}={case['WeJfm21']:.1f}$"
     ax[0].plot(time[mask], m[mask], 'o', c=case['col'], label=lbl, clip_on=False, mfc='None', alpha=.7, zorder=-1) 
     mask = (m > 0) & (time < 6)
     ax[1].plot(time[mask], m[mask], 'o', c=case['col'], label=lbl, clip_on=False, mfc='None', alpha=.7, zorder=-1) 
@@ -1348,7 +1345,7 @@ def MoIDotStrainVsDelay():
 #energyVsWaveNumber()
 #surPowFreqVsWaveNumber()
 #areaVsTime()
-#areaVsTimePad()
+areaVsTimePad()
 #survivalVsTime()
 #areaAndForcingVsTime()
 #MoIAlignStrainVsTime()
@@ -1356,8 +1353,8 @@ def MoIDotStrainVsDelay():
 #strainVsTime()
 #strainAvVsTime()
 #QRVsTime()
-vortVsTime()
-energyVsTime()
+#vortVsTime()
+#energyVsTime()
 #axesLenVsTime()
 #axesLenVsStrain()
 #aspectRatioVsTime()
