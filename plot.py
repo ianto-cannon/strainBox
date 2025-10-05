@@ -11,19 +11,15 @@ sigma=2*2**.5/3
 diam=2*np.pi/3
 vis=.219 #from measurements of rmsVel and Re_lambda=58
 td=diam**(2/3.)
-#cmap = plt.get_cmap('plasma')
-cmap = plt.get_cmap('magma')
+cmap = plt.get_cmap('plasma')
+#cmap = plt.get_cmap('magma')
 colors = [cmap(i) for i in np.linspace(0.8, 0.2, 3)] 
-listy=['solid','dashed','dashdot']
+listy=['solid','dashed','dotted']
 cases = {
-#    'we_02'   :{'output':'',        'We':.02, 'col':cmap(.2), 'timeLen':120},
-#    'we_05'   :{'output':'/output', 'We':.05, 'col':cmap(.4), 'timeLen':120},
-#    'we_08'   :{'output':'/output', 'We':.08, 'col':cmap(.6), 'timeLen':100},
-#    'we_10'   :{'output':'/output', 'We':.10, 'col':cmap(.8), 'timeLen':90}
     'we_02'   :{'output':'',        'We':.02, 'col':cmap(0), 'timeLen':120},
-    'we_05'   :{'output':'/output', 'We':.05, 'col':cmap(.33), 'timeLen':120},
-    'we_08'   :{'output':'/output', 'We':.08, 'col':cmap(.66), 'timeLen':100},
-    'we_10'   :{'output':'/output', 'We':.10, 'col':cmap(1), 'timeLen':90}
+    'we_05'   :{'output':'/output', 'We':.05, 'col':cmap(.25), 'timeLen':120},
+    'we_08'   :{'output':'/output', 'We':.08, 'col':cmap(.5), 'timeLen':100},
+    'we_10'   :{'output':'/output', 'We':.10, 'col':cmap(.75), 'timeLen':90}
        }
 for dirName, case in cases.items():
   case['rho'] = case['We']
@@ -363,80 +359,166 @@ def surPowFreqVsWaveNumber():
   return
 
 def MoIAlignStrainVsTime(): 
-  fig, ax = plt.subplots(1)#, figsize=[columnWid, .6*columnWid])
-  ax.tick_params(which='both', direction='in', top=True, right=True)
-  ax.set_xlabel('$(t-t_b)/t_d$', rotation=0)
-  labels = ['|$S_1d^{2/3}\\epsilon^{-1/3}|$', r'$S_2$', r'$S_3$']
-  ax.set_xlabel('$(t-t_b)/t_d$', rotation=0)
-  ax.set_ylabel('$|\\mathbf{\\hat s_i\\cdot \hat l_3}|$', rotation=0, labelpad=10)
-  ax.set_ylim([0,1])
-  ax.set_xlim([-3,0])
+  fig, ax = plt.subplots(1, 3, figsize=(6.4*100/70,  4.8*50/70), sharey=True)
+  fig.subplots_adjust(left=0.1, right=0.95, top=0.95, bottom=0.1, wspace=0.1, hspace=0.05)
+  for a in ax:
+    a.tick_params(which='both', direction='in', top=True, right=True)
+    a.set_xlabel('$(t-t_b)/t_d$', rotation=0)
+    a.set_xlim([-3,0])
+  ax[0].set_ylabel('$|\\mathbf{\\hat s_i\\cdot \hat l_3}|$', rotation=0, labelpad=10)
+  ax[0].set_ylim([0,1])
   cut=30
-  timeLen=100
-  allStrain = []
-  allS1 = []
-  allS3 = []
-  allS2 = []
-  count=0
-  for i in range(1000):
-    fname = f'/home/ianto.cannon/drops/boxStrain/we_05RBy12/run_break_{i:03}/strainSphereR085.txt'
-    try:
+  rad=85
+  radStr=f'{rad:03}'
+  time = np.array([(i-199)*timestep/td for i in range(200)])
+  j=0
+  for dirName, case in cases.items():
+    print(dirName)
+    allStrain = []
+    allS1 = []
+    allS3 = []
+    allS2 = []
+    count=0
+    for i in range(1000):
+      fname='/home/ianto.cannon/drops/boxStrain/'+dirName+'velGAv/output'+f'/run_break_{i:03}/strain/SphereAvR'+radStr+'.txt'
+      try:
+        with open(fname, encoding = 'utf-8') as f:
+          strain = np.loadtxt(f)
+      except FileNotFoundError:
+        continue
+      strainLen=np.shape(strain)[0]
+      if strainLen>198:continue
+      if strainLen<cut+4:continue
+      strain = strain[cut:,:]
+      fname='/home/ianto.cannon/drops/boxStrain/'+dirName+'velGAv/output'+f'/run_break_{i:03}/MoInDrops.txt'
       with open(fname, encoding = 'utf-8') as f:
-        strain = np.loadtxt(f)
-    except FileNotFoundError:
-      continue
-    strainLen=np.shape(strain)[0]
-    if strainLen>198:continue
-    if strainLen<timeLen+cut:continue
-    strain = strain[-timeLen:,:]
-    fname = f'/home/ianto.cannon/drops/boxStrain/we_05RBy12/run_break_{i:03}/MoInDrops.txt'
-    with open(fname, encoding = 'utf-8') as f:
-      MoI = np.loadtxt(f)
-    MoI = MoI[-timeLen:,:]
-    for i in range(len(MoI[:,0])):
-      if abs(sum(MoI[i,4:7]**2)) > 2: MoI[i,4] = np.nan 
-    inProdS3 = [ abs(sum(MoI[i,4:7]*strain[i,10:13])) for i in range(len(MoI[:,0])) ]
-    inProdS2 = [ abs(sum(MoI[i,4:7]*strain[i,7:10])) for i in range(len(MoI[:,0])) ]
-    inProdS1 = [ abs(sum(MoI[i,4:7]*strain[i,4:7])) for i in range(len(MoI[:,0])) ]
-    s=np.stack([inProdS1,inProdS2,inProdS3], axis=-1)
-    allStrain.append(s)#, axis=1))
-    allS1.append(inProdS1)#, axis=1))
-    allS2.append(inProdS2)#, axis=1))
-    allS3.append(inProdS3)#, axis=1))
-    count+=1
-  print('count',count)
-  strainData = np.stack(allStrain, axis=0)
-  p10 = np.nanpercentile(strainData, 25, axis=0)
-  p50 = np.nanpercentile(strainData, 50, axis=0)
-  p90 = np.nanpercentile(strainData, 75, axis=0)
-  m = np.nanmean(strainData, axis=0)
-  s1Data = np.stack(allS1, axis=0)
-  s2Data = np.stack(allS2, axis=0)
-  s3Data = np.stack(allS3, axis=0)
-  ms1 = np.nanmean(s1Data, axis=0)
-  ms2 = np.nanmean(s2Data, axis=0)
-  ms3 = np.nanmean(s3Data, axis=0)
-  ls1 = np.nanpercentile(s1Data, 25, axis=0)
-  us1 = np.nanpercentile(s1Data, 75, axis=0)
-  ls2 = np.nanpercentile(s2Data, 25, axis=0)
-  us2 = np.nanpercentile(s2Data, 75, axis=0)
-  ls3 = np.nanpercentile(s3Data, 25, axis=0)
-  us3 = np.nanpercentile(s3Data, 75, axis=0)
-  time = np.array([(i+1-timeLen)*timestep/td for i in range(timeLen)])
-  ax.plot(time, ms1, label=labels[0], color=colors[0])
-  ax.plot(time, ms2, label=labels[1], color=colors[1])
-  ax.plot(time, ms3, label=labels[2], color=colors[2])
-  ax.fill_between(time,ls1,us1,color=colors[0],alpha=0.3,edgecolor='none') 
-  ax.fill_between(time,ls2,us2,color=colors[1],alpha=0.3,edgecolor='none') 
-  ax.fill_between(time,ls3,us3,color=colors[2],alpha=0.3,edgecolor='none') 
-  for i in range(-1):
-    ax.plot(time, p50[:,i], label=labels[i-1], color=colors[i-1])
-    ax.fill_between(
-      time,p10[:,i],p90[:,i],
-      #time,m[:,i]-std[:,i],m[:,i]+std[:,i],
-      color=colors[i-1],
-      alpha=0.3,edgecolor='none') 
+        MoI = np.loadtxt(f)
+      MoI = MoI[cut:,:]
+      for i in range(len(MoI[:,0])):
+        if abs(sum(MoI[i,4:7]**2)) > 2: MoI[i,4] = np.nan 
+      inProdS3 = [ abs(sum(MoI[i,4:7]*strain[i,10:13])) for i in range(len(MoI[:,0])) ]
+      inProdS2 = [ abs(sum(MoI[i,4:7]*strain[i,7:10])) for i in range(len(MoI[:,0])) ]
+      inProdS1 = [ abs(sum(MoI[i,4:7]*strain[i,4:7])) for i in range(len(MoI[:,0])) ]
+      pad_rows = np.full(200+cut-strainLen, np.nan)
+      inProdS1 = np.concatenate((pad_rows, inProdS1))
+      inProdS2 = np.concatenate((pad_rows, inProdS2))
+      inProdS3 = np.concatenate((pad_rows, inProdS3))
+      s=np.stack([inProdS1,inProdS2,inProdS3], axis=-1)
+      allStrain.append(s)#, axis=1))
+      allS1.append(inProdS1)#, axis=1))
+      allS2.append(inProdS2)#, axis=1))
+      allS3.append(inProdS3)#, axis=1))
+      count+=1
+    print('count',count)
+    if count<5: continue
+    strainData = np.stack(allStrain, axis=0)
+    p10 = np.nanpercentile(strainData, 25, axis=0)
+    p50 = np.nanpercentile(strainData, 50, axis=0)
+    p90 = np.nanpercentile(strainData, 75, axis=0)
+    m = np.nanmean(strainData, axis=0)
+    s1Data = np.stack(allS1, axis=0)
+    s2Data = np.stack(allS2, axis=0)
+    s3Data = np.stack(allS3, axis=0)
+    ms1 = np.nanmean(s1Data, axis=0)
+    ms2 = np.nanmean(s2Data, axis=0)
+    ms3 = np.nanmean(s3Data, axis=0)
+    ls1 = np.nanpercentile(s1Data, 25, axis=0)
+    us1 = np.nanpercentile(s1Data, 75, axis=0)
+    ls2 = np.nanpercentile(s2Data, 25, axis=0)
+    us2 = np.nanpercentile(s2Data, 75, axis=0)
+    ls3 = np.nanpercentile(s3Data, 25, axis=0)
+    us3 = np.nanpercentile(s3Data, 75, axis=0)
+    ax[j].fill_between(time,ls1,us1,color=colors[0],alpha=0.3,edgecolor='none') 
+    ax[j].fill_between(time,ls2,us2,color=colors[1],alpha=0.3,edgecolor='none') 
+    ax[j].fill_between(time,ls3,us3,color=colors[2],alpha=0.3,edgecolor='none') 
+    ax[j].plot(time, ms1, color=colors[0])# label=labels[0],
+    ax[j].plot(time, ms2, color=colors[1])# label=labels[1],
+    ax[j].plot(time, ms3, color=colors[2])# label=labels[2],
+    for i in range(-1):
+      ax[j].plot(time, p50[:,i], color=colors[i-1])#label=labels[i-1], 
+      ax[j].fill_between(
+        time,p10[:,i],p90[:,i],
+        #time,m[:,i]-std[:,i],m[:,i]+std[:,i],
+        color=colors[i-1],
+        alpha=0.3,edgecolor='none') 
+    j+=1
   fname = 'plots/MoIAlignStrainsVsTime.pdf'
+  print('savin ',fname)
+  fig.savefig(fname, bbox_inches='tight', transparent=True, format='pdf', dpi=600)
+  return
+
+def longAxAlignStrainVsTime(): 
+  fig, ax = plt.subplots(1, 3, figsize=(6.4*100/70,  4.8*50/70), sharey=True)
+  fig.subplots_adjust(left=0.1, right=0.95, top=0.95, bottom=0.1, wspace=0.1, hspace=0.05)
+  for a in ax:
+    a.tick_params(which='both', direction='in', top=True, right=True)
+    a.set_xlabel('$(t-t_b)/t_d$', rotation=0)
+    a.set_xlim([-2.5,0])
+  ax[0].set_ylabel('$|\\mathbf{\hat l^{(3)} \\cdot \\hat s^{(i)} }|$')#, rotation=0, labelpad=10)
+  ax[0].set_ylim([0,1])
+  ax[0].set_yticks([0,0.25,0.5,0.75,1])
+  rad=85
+  radStr=f'{rad:03}'
+  for c, (dirName, case) in enumerate(cases.items()):
+    print(dirName)
+    for a in range(2):
+      if a==0:continue
+      allS3 = []
+      allS2 = []
+      allS1 = []
+      count=0
+      if a==0:
+        time = np.array([i*timestep/td for i in range(200)])
+        cut=50
+      else:
+        time = np.array([(i-199)*timestep/td for i in range(200)])
+        cut=30
+      for i in range(1000):
+        fname='/home/ianto.cannon/drops/boxStrain/'+dirName+'velGAv/output'+f'/run_break_{i:03}/strain/SphereAvR'+radStr+'.txt'
+        try:
+          with open(fname, encoding = 'utf-8') as f:
+            strain = np.loadtxt(f)
+        except FileNotFoundError:
+          continue
+        strainLen=np.shape(strain)[0]
+        if strainLen>198:continue
+        if strainLen<cut+4:continue
+        strain = strain[cut:,:]
+        fname='/home/ianto.cannon/drops/boxStrain/'+dirName+'velGAv/output'+f'/run_break_{i:03}/MoInDrops.txt'
+        with open(fname, encoding = 'utf-8') as f:
+          MoI = np.loadtxt(f)
+        MoI = MoI[cut:,:]
+        for i in range(len(MoI[:,0])):
+          if abs(sum(MoI[i,4:7]**2)) > 2: MoI[i,4] = np.nan 
+        inProdS3 = [ abs(sum(MoI[i,4:7]*strain[i,10:13])) for i in range(len(MoI[:,0])) ]
+        inProdS2 = [ abs(sum(MoI[i,4:7]*strain[i,7:10])) for i in range(len(MoI[:,0])) ]
+        inProdS1 = [ abs(sum(MoI[i,4:7]*strain[i,4:7])) for i in range(len(MoI[:,0])) ]
+        pad_rows = np.full(200+cut-strainLen, np.nan)
+        if a==0:
+          inProdS3 = np.concatenate((inProdS3, pad_rows))
+          inProdS2 = np.concatenate((inProdS2, pad_rows))
+          inProdS1 = np.concatenate((inProdS1, pad_rows))
+        else:
+          inProdS3 = np.concatenate((pad_rows, inProdS3))
+          inProdS2 = np.concatenate((pad_rows, inProdS2))
+          inProdS1 = np.concatenate((pad_rows, inProdS1))
+        allS3.append(inProdS3)
+        allS2.append(inProdS2)
+        allS1.append(inProdS1)
+        count+=1
+      print('count',count)
+      if count<5: continue
+      for s, allS in enumerate([allS1, allS2, allS3]):
+        data = np.stack(allS, axis=0)
+        l = np.nanpercentile(data, 25, axis=0)
+        m = np.nanpercentile(data, 50, axis=0)
+        u = np.nanpercentile(data, 75, axis=0)
+        #m = np.nanmean(data, axis=0)
+        #std = np.nanstd(data, axis=0)
+        #ax[c-1].fill_between(time,m-.25*std,m+.25*std,color=case['col'],alpha=0.3,edgecolor='none') 
+        ax[c-1].fill_between(time,l,u,color=case['col'],alpha=0.3,edgecolor='none') 
+        ax[c-1].plot(time, m, ls=listy[2-s], c=case['col'])
+  fname = 'plots/longAxAlignStrainsVsTime.pdf'
   print('savin ',fname)
   fig.savefig(fname, bbox_inches='tight', transparent=True, format='pdf', dpi=600)
   return
@@ -556,16 +638,18 @@ def strainVsTime():
    return
 
 def strainAvVsTime(): 
-  fig, ax = plt.subplots(1)
-  ax.tick_params(which='both', direction='in', top=True, right=True)
-  ax.set_xlabel('$(t-t_b)/t_d$', rotation=0)
-  #ax.set_ylabel('$S_i\\sqrt{\\nu/\\epsilon}$')#, rotation=0, size=20)
-  ax.set_ylabel('$S_i\\sqrt{\\frac{\\nu}{\\epsilon}}$', rotation=0)#, size=20)
-  ax.set_xlim([-3,0])
-  ax.set_ylim([-.02,.02])
+  fig, ax = plt.subplots(1, 3, figsize=(6.4*100/70,  4.8*50/70), sharey=True)
+  fig.subplots_adjust(left=0.1, right=0.95, top=0.95, bottom=0.1, wspace=0.1, hspace=0.05)
+  for a in ax:
+    a.tick_params(which='both', direction='in', top=True, right=True)
+    a.set_xlabel('$(t-t_b)/t_d$', rotation=0)
+    a.set_xlim([-2.5,0])
+  ax[0].set_ylabel('$S^{(i)}\\sqrt{\\frac{\\nu}{\\epsilon}}$')#, rotation=0, labelpad=15)#size=20)
+  ax[0].set_ylim([-.017,.017])
   rad=85
   time = np.array([(i-199)*timestep/td for i in range(200)])
   cut=20
+  j=0
   for dirName, case in cases.items():
     print(dirName)
     radStr=f'{rad:03}'
@@ -597,10 +681,11 @@ def strainAvVsTime():
     u = np.nanpercentile(strainData, 75, axis=0)
     m = np.nanmean(strainData, axis=0)
     lbl = rf"$\mathrm{{We}}={case['WeJfm21']:.1f}$"
-    ax.fill_between( time, l[:,1], u[:,1], color=case['col'], alpha=0.3, edgecolor='none', label=lbl) 
+    ax[j].fill_between( time, l[:,1], u[:,1], color=case['col'], alpha=0.3, edgecolor='none', label=lbl) 
     for i in range(1, 4):
-      if i>1:ax.fill_between( time, l[:,i], u[:,i], color=case['col'], alpha=0.3, edgecolor='none') 
-      ax.plot(time, m[:,i], ls=listy[3-i], c=case['col'], lw=1.5)
+      if i>1:ax[j].fill_between( time, l[:,i], u[:,i], color=case['col'], alpha=0.3, edgecolor='none') 
+      ax[j].plot(time, m[:,i], ls=listy[3-i], c=case['col'], lw=1.5)
+    j+=1
   #ax.legend()
   fname = 'plots/dissAvPlots/strainAvVsTime.pdf'
   print('savin ',fname)
@@ -718,11 +803,11 @@ def energyVsTime():
   ax.set_ylabel('$E$', rotation=0)#, size=20)
   ax.set_xlim([-3,0])
   rad=85
+  radStr=f'{rad:03}'
   time = np.array([(i-199)*timestep/td for i in range(200)])
   cut=50
   for dirName, case in cases.items():
     print(dirName)
-    radStr=f'{rad:03}'
     allStrain = []
     count=0
     for i in range(1000):
@@ -762,7 +847,7 @@ def axesLenVsTime():
   fig.subplots_adjust(left=0.1, right=0.95, top=0.95, bottom=0.1, wspace=0.1, hspace=0.05)
   for a in ax:
     a.tick_params(which='both', direction='in', top=True, right=True)
-  ax[0].set_ylabel('$\\frac{L_i}{d}$', rotation=0, size=20, labelpad=10)
+  ax[0].set_ylabel('$\\frac{L^{(i)}}{d}$', rotation=0, size=20, labelpad=10)
   ax[0].set_ylim([0,1.5])
   ax[0].set_xlim([0,2])
   ax[0].set_xlabel('$t/t_d$', rotation=0)
@@ -890,16 +975,17 @@ def aspectRatioVsTime():
   ax.tick_params(which='both', direction='in', top=True, right=True)
   ax.set_xlabel('$(t-t_b)/t_d$', rotation=0)
   ax.set_ylabel('$\\frac{2L_3}{L_1+L_2}$', rotation=0, size=20, labelpad=20)
-  #ax.set_ylim([0,2])
+  ax.set_ylim([1.4,1.95])
   ax.set_xlim([-3,0])
+  time = np.array([(i-199)*timestep/td for i in range(200)])
   cut=30
-  timeLen=100
   for dirName, case in reversed(cases.items()):
     print(dirName)
     allStrain = []
     count=0
     for i in range(1000):
-      fname='/home/ianto.cannon/drops/boxStrain/'+dirName+case['output']+f'/run_break_{i:03}/MoInDrops.txt'
+      #fname='/home/ianto.cannon/drops/boxStrain/'+dirName+case['output']+f'/run_break_{i:03}/MoInDrops.txt'
+      fname='/home/ianto.cannon/drops/boxStrain/'+dirName+f'velGAv/output/run_break_{i:03}/MoInDrops.txt'
       try:
         with open(fname, encoding = 'utf-8') as f:
           strain = np.loadtxt(f)
@@ -908,24 +994,25 @@ def aspectRatioVsTime():
         continue
       strainLen=np.shape(strain)[0]
       if strainLen>198:continue
-      if strainLen<timeLen+cut:continue
-      strain = 2*strain[-timeLen:-1,3]/(strain[-timeLen:-1,2]+strain[-timeLen:-1,1])
+      if strainLen<4+cut:continue
+      strain = 2*strain[cut:-1,3]/(strain[cut:-1,2]+strain[cut:-1,1])
       #why is factor of 3/2 needed to get I=1 at t=0? It corresponds to R=0.92L/6
+      pad_rows = np.full(201+cut-strainLen, np.nan)
+      strain = np.concatenate((pad_rows,strain))
       count+=1
       allStrain.append(strain)
     print('count',count)
-    if count<5: continue
+    if count<5: 
+      print('count',count,fname)
+      continue
     strainData = np.stack(allStrain, axis=0)
-    p10 = np.nanpercentile(strainData, 25, axis=0)
-    p50 = np.nanpercentile(strainData, 50, axis=0)
-    p90 = np.nanpercentile(strainData, 75, axis=0)
+    l = np.nanpercentile(strainData, 25, axis=0)
+    u = np.nanpercentile(strainData, 75, axis=0)
     m = np.nanmean(strainData, axis=0)
-    std = np.nanstd(strainData, axis=0)
-    time = np.array([(i+2-timeLen)*timestep/td for i in range(timeLen-1)])
     #ax.plot([-3,0], [np.pi/4,np.pi/4], color='k') #above this aspect ratio, the streching is positive
     #ax.plot(time, strainData[31,:,i], color=colors[3-i])#, alpha=.3)
+    ax.fill_between(time,l,u,color=case['col'],alpha=0.3,edgecolor='none') 
     ax.plot(time, m, color=case['col'])
-    ax.fill_between(time,p10,p90,color=case['col'],alpha=0.3,edgecolor='none') 
   fname = 'plots/aspectRatioVsTime.pdf'
   print('savin ',fname)
   fig.savefig(fname, bbox_inches='tight', transparent=True, format='pdf', dpi=600)
@@ -1201,15 +1288,15 @@ def strainDiagram():
     #ax.plot([xC,xC],[yC+h,yC+h+l], color=colors[0])
     #ax.plot([xC,xC],[yC-h,yC-h-l], color=colors[0])
     ax.plot(xC,yC,'o',color=colors[1],ms=3)
-    ax.text(xC+w,yC,'$L_3\\mathbf{\\hat l_3}$',color=colors[2], ha='left', va='center')
-    ax.text(xC,yC+h+.1,'$L_1\\mathbf{\\hat l_1}$',color=colors[0], ha='center', va='bottom')
+    ax.text(xC+w-.1,yC+.15,'$L^{(3)}\\mathbf{\\hat l^{(3)}}$',color=colors[2], ha='center', va='center')
+    ax.text(xC,yC+h+.1,'$L^{(1)}\\mathbf{\\hat l^{(1)}}$',color=colors[0], ha='center', va='bottom')
     x=[]
     y=[]
     for phi in np.linspace(0,2*np.pi,100):
       x.append(xC+w*np.cos(phi))
       y.append(yC+h*np.sin(phi))
     ax.plot(x,y,lw=.5,color='k')
-  if False:
+  if True:
     x=[]
     y=[]
     h=2
@@ -1227,8 +1314,8 @@ def strainDiagram():
       ax.plot(xC-w-l,yC+s,'<',color=colors[2])
       ax.plot(xC+s,yC-h+l,'^',color=colors[0])
       ax.plot(xC+s,yC+h-l,'v',color=colors[0])
-    ax.text(xC+w+3*l,yC,'$S_3\\mathbf{\\hat s_3}$',color=colors[2], ha='center', va='center')
-    ax.text(xC,yC+w+2*l,'$S_1\\mathbf{\\hat s_1}$',color=colors[0], ha='center', va='center')
+    ax.text(xC+w+2*l,yC,'$S^{(3)}\\mathbf{\\hat s^{(3)}}$',color=colors[2], ha='left', va='center')
+    ax.text(xC,yC+w+2*l,'$S^{(1)}\\mathbf{\\hat s^{(1)}}$',color=colors[0], ha='center', va='center')
   fname = 'plots/strainDiagram.pdf'
   print('savin ',fname)
   fig.savefig(fname, bbox_inches='tight', transparent=True, format='pdf', dpi=600)
@@ -1302,84 +1389,110 @@ def correlation(x, y):
   return cross_corr#[:n]#/(n-np.arange(n))
 
 def MoIDotStrainVsDelay(): 
-  fig, ax = plt.subplots(1)
-  ax.tick_params(which='both', direction='in', top=True, right=True)
-  ax.set_xlabel('$\\tau/t_d$', rotation=0)
-  ax.set_ylabel('$\\langle|\\mathbf{\\hat l_3}(t+\\tau)\\cdot \\mathbf{\\hat s_3}(t)|\\rangle$')#, rotation=0, labelpad=10)
-  ax.set_ylim([0.4,.8])
-  ax.set_xlim([-1.5,1.5])
-  secax = ax.secondary_yaxis(0, transform=ax.transData)
-  secax.tick_params(which='both', direction='in', top=True, right=True)
-  secax.tick_params(
-      labelbottom=False,  # Remove bottom labels
-      labeltop=False,     # Remove top labels (secondary axes often default to top)
-      labelleft=False,     # Remove top labels (secondary axes often default to top)
-      labelright=False,     # Remove top labels (secondary axes often default to top)
-      bottom=True,        # Show bottom ticks
-      top=True,           # Show top ticks
-      direction='inout',  # Extend both in and out
-      #length=6            # Length of ticks (adjust as needed)
-  )
-  cut=20
-  for dirName, case in reversed(cases.items()):
+  fig, ax = plt.subplots(1, 3, figsize=(6.4*100/70,  4.8*50/70), sharey=True)
+  fig.subplots_adjust(left=0.1, right=0.95, top=0.95, bottom=0.1, wspace=0.1, hspace=0.05)
+  secax = []
+  for i, a in enumerate(ax):
+    a.tick_params(which='both', direction='in', top=True, right=True)
+    a.set_xlim([-4,4])
+    a.set_ylim([0,1])
+    secax[i] = a.secondary_yaxis(0, transform=ax.transData)
+    secax[i].tick_params(which='both', direction='in', top=True, right=True)
+    secax[i].tick_params(labelbottom=False, labeltop=False, labelleft=False, labelright=False, bottom=True, top=True, direction='inout')
+  ax[0].set_xlabel('$\\tau/t_d$', rotation=0)
+  ax[1].set_xlabel('$\\tau/t_\\sigma$', rotation=0)
+  ax[2].set_xlabel('$\\tau/t_d$', rotation=0)
+  ax[0].set_ylabel('$\\langle|\\mathbf{\\hat s^{(3)}}(t+\\tau)\\cdot \\mathbf{\\hat s^{(3)}3}(t)|\\rangle$')
+  ax[1].set_ylabel('$\\langle|\\mathbf{\\hat l^{(3)}}(t+\\tau)\\cdot \\mathbf{\\hat l^{(3)}3}(t)|\\rangle$')
+  ax[2].set_ylabel('$\\langle|\\mathbf{\\hat l^{(3)}}(t+\\tau)\\cdot \\mathbf{\\hat s^{(3)}3}(t)|\\rangle$')
+  #ax.set_ylim([0.45,.75])
+  #ax.set_xlim([-4,4])
+  insax = ax[2].inset_axes((.03,.62,.25,.35))
+  insax.tick_params(which='both', direction='in', top=True, right=True, left=True)
+  insax.yaxis.set_label_position("right")
+  insax.yaxis.tick_right()
+  #insax.set_ylabel('$\\frac{\\tau_\\mathrm{peak}}{t_\\sigma}$', rotation=0, size=20)
+  insax.set_ylabel('$\\tau_c/t_\\sigma$', rotation=-90)#, labelpad=-10)
+  insax.set_xlabel('$\\mathrm{We}$', rotation=0)
+  insax.set_xlim([0,4])
+  #insax.set_ylim([-.4,.4])
+  cutSta=5
+  cutEnd=5
+  delayMax=200-cutSta-cutEnd-1
+  time = np.array([t*timestep/td for t in range(-delayMax, delayMax+1)])
+  for dirName, case in (cases.items()):
     print(dirName)
-    timeLen=120
-    lagMin=-50
-    lagMax=50
-    if '_08' in dirName:
-      timeLen=80
-      lagMin=-30
-      lagMax=30
-    if '_10' in dirName:
-      continue
-      timeLen=70
-      lagMin=-25
-      lagMax=25
-    print('avgLen',timeLen-lagMax+lagMin)
-    strainLens = []
-    listCorr = []
+    #time = [t*timestep/case['tsig'] for t in range(-delayMax, delayMax+1)]
+    m = np.full([2*delayMax+1, 3], np.nan)
+    #l = np.full(2*delayMax+1, np.nan)
+    #u = np.full(2*delayMax+1, np.nan)
+    #s = np.full(2*delayMax+1, np.nan)
+    listCorr0 = [[] for _ in range(2*delayMax+1)]
+    listCorr1 = [[] for _ in range(2*delayMax+1)]
+    listCorr2 = [[] for _ in range(2*delayMax+1)]
     count=0
     for i in range(1000):
-      fname='/home/ianto.cannon/drops/boxStrain/'+dirName+case['output']+f'/run_break_{i:03}/strain/SphereR085.txt'
+      fname='/home/ianto.cannon/drops/boxStrain/'+dirName+f'velGAv/output/run_break_{i:03}/strain/SphereR085.txt'
       try:
         with open(fname, encoding = 'utf-8') as f:
           strain = np.loadtxt(f)
       except FileNotFoundError:
         continue
-      strainLen=np.shape(strain)[0]
-      strainLens.append(strainLen)
-      if strainLen<timeLen+2*cut:continue
-      strain = strain[cut:timeLen+cut,:]
-      fname='/home/ianto.cannon/drops/boxStrain/'+dirName+case['output']+f'/run_break_{i:03}/MoInDrops.txt'
+      strainLen = np.shape(strain)[0] - cutSta - cutEnd
+      if strainLen < 4: continue
+      strain = strain[cutSta:-cutEnd,:]
+      fname='/home/ianto.cannon/drops/boxStrain/'+dirName+f'velGAv/output/run_break_{i:03}/MoInDrops.txt'
       with open(fname, encoding = 'utf-8') as f:
         MoI = np.loadtxt(f)
-      MoI = MoI[cut:timeLen+cut,:]
-      for i in range(len(MoI[:,0])):
-        if sum(MoI[i,4:7]**2) > 1.1: print('MoI not unit length',i)
-      #inProdS3 = [ abs(sum(MoI[i,4:7]*strain[i,10:13])) for i in range(len(MoI[:,0])) ]
+      MoI = MoI[cutSta:-cutEnd,:]
+      fname='/home/ianto.cannon/drops/boxStrain/'+dirName+f'velGAv/output/run_break_{i:03}/statDrops.txt'
+      with open(fname, encoding = 'utf-8') as f:
+        defo = np.loadtxt(f)
+      defo = defo[cutSta:-cutEnd,3]
+      for i in range(len(defo)):
+        #if moilen > 1.1: 
+        if defo[i] < 0: 
+          #moilen = sum(MoI[i,4:7]**2)
+          #print('strainLen-i, defo, MoI', strainLen-i, defo[i], MoI[i,4:7]) 
+          MoI[i,10:13] = np.nan
+          strain[i,4:7] = np.nan
       count+=1
-      corr = np.zeros(lagMax-lagMin)
-      for lag in range(lagMin,lagMax):
-        for t in range(-lagMin,timeLen-lagMax):
-          #corr[lag-lagMin] += (strain[t,4] * MoI[t+lag,10]) / (timeLen-lagMax+lagMin)
-          corr[lag-lagMin] += abs( sum( strain[t,4:7] * MoI[t+lag,10:13] ) ) / (timeLen-lagMax+lagMin)
-      listCorr.append(corr)
+      for lag in range(1-strainLen,strainLen):
+        t_start = max(0, -lag)
+        t_end = min(strainLen, strainLen-lag)
+        for t in range(t_start, t_end):
+          #align = abs( sum(strain[t,4:7] * MoI[t+lag,10:13] ) )
+          #align = abs( sum(strain[t,4:7] * strain[t+lag,4:7] ) )
+          align = abs( sum(MoI[t,10:13] * MoI[t+lag,10:13] ) )
+          if align!=align: continue
+          listCorr0[lag+delayMax].append(align)
+          #listCorr[lag+delayMax].append( abs( sum( MoI[t,10:13] * MoI[t+lag,10:13] ) ) )
+        #    listCorr[lag+delayMax].append(abs(sum(strain[t,4:7] * MoI[t+lag,10:13])))
+        #for t in range(strainLen):
+        #  if t+lag < 0: continue
+        #  if t+lag >= strainLen: continue
     print('count',count)
-    #strainLens.sort()
-    #print('longest strainLen',strainLens[-1])
-    #print('5th longest strainLen',strainLens[-5])
-    #print('10th longest strainLens',strainLens[-10])
     #if count<10:continue
-    ax.plot([case['tsig']/td,case['tsig']/td], [0,1], c=case['col'], alpha=.3)
-    allCorr = np.stack(listCorr, axis=0)
-    l = np.nanpercentile(allCorr, 45, axis=0)
-    u = np.nanpercentile(allCorr, 55, axis=0)
-    m = np.nanmean(allCorr, axis=0)
-    s = np.nanstd(allCorr, axis=0)/5
-    time = np.arange(lagMin,lagMax) * timestep/td 
-    #ax.fill_between(time,l,u,color=case['col'],alpha=0.3,edgecolor='none') 
-    ax.fill_between(time,m-s,m+s,color=case['col'],alpha=0.3,edgecolor='none') 
-    ax.plot(time, m, c=case['col'])
+    #ax.plot([case['tsig']/td,case['tsig']/td], [0,1], c=case['col'], alpha=.3)
+    for i, lst in enumerate(listCorr):
+      if len(lst) < 10*delayMax: continue    
+      #l[i] = np.percentile(lst, 45)
+      #u[i] = np.percentile(lst, 55)
+      #m[i] = np.percentile(lst, 50)
+      m[i] = np.mean(lst)
+      #s[i] = np.std(lst)
+    #m=np.array(m)
+    #print('time',time)
+    #print('m',m)
+    #print('l',l)
+    #print('u',u)
+    lbl = rf"$\mathrm{{We}}={case['WeJfm21']:.1f}$"
+    #ax.fill_between(time,l,u,color=case['col'],alpha=0.3,edgecolor='none', label=lbl) 
+    #ax.fill_between(time,m-s/10,m+s/10,color=case['col'],alpha=0.3,edgecolor='none') 
+    ax.plot(time*td/case['tsig'], m, c=case['col'])#, label=lbl)
+    insax.plot(case['WeJfm21'],time[np.nanargmax(m)]*td/case['tsig'],'o',c=case['col'])
+    #insax.plot(case['WeJfm21'],time[np.nanargmax(m)],'o',c=case['col'])
+  #ax.legend()
   fname = 'plots/MoIDotStrainVsDelay.pdf'
   print('savin ',fname)
   fig.savefig(fname, bbox_inches='tight', transparent=True, format='pdf', dpi=600)
@@ -1396,9 +1509,10 @@ def MoIDotStrainVsDelay():
 #survivalVsTime()
 #areaAndForcingVsTime()
 #MoIAlignStrainVsTime()
+#longAxAlignStrainVsTime()
 #sanBernado()
 #strainVsTime()
-strainAvVsTime()
+#strainAvVsTime()
 #QRVsTime()
 #vortVsTime()
 #energyVsTime()
@@ -1408,4 +1522,4 @@ strainAvVsTime()
 #dissVsTime()
 #strainDiagram()
 #aspecRatioVsDiss()
-#MoIDotStrainVsDelay()
+MoIDotStrainVsDelay()

@@ -439,6 +439,7 @@ do
     if(last0(1).eq.0.or.last0(2).eq.0.or.last0(3).eq.0) then
       write(*,*) 'drop spans all of domain, deformation is undefined'
       deformation=-1.0
+      MoIEiVals=-1.0
     else
       call SSYEV('V','U',3,MoI,3,MoIEiVals,work,8,error)
       if (error.ne.0) write(*,*) 'dropSize', dropSize, 'MoIEiVals', MoIEiVals
@@ -492,9 +493,11 @@ do
     !  write(veloU,'(256ES16.7E3)') drop(:,k,100)*1.
     !enddo
     !write(*,*) 'drop',sum(1.*drop)/(1.*nt(1))**3
-    call makeEllipse(dropPos, MoI, MoIEiVals, dropSize*dx(1)*dx(2)*dx(3), drop)
-    call velGBlob(drop,vel,dVeldx,ReStress)
-    call saveStrain(outDir,'Ellipse',time,dVeldx,ReStress)
+    if (deformation.gt.0.0) then
+      call makeEllipse(dropPos, MoI, MoIEiVals, dropSize*dx(1)*dx(2)*dx(3), drop)
+      call velGBlob(drop,vel,dVeldx,ReStress)
+      call saveStrain(outDir,'Ellipse',time,dVeldx,ReStress)
+    endif
     do i=1,5
       r=l(3)/12.*i
       write(filename,'(i3.3)') nint(r)
