@@ -9,6 +9,10 @@ sigma=2*2**.5/3
 diam=2*np.pi/3
 vis=.219 #from measurements of rmsVel and Re_lambda=58
 td=diam**(2/3.)
+print('td',td)
+uRms = 1.25
+L=2*np.pi
+TL=L/uRms
 cmap = plt.get_cmap('plasma')
 freq = np.array([i*td/timestep/100 for i in range(51)])
 wavNumb = np.array([i/3 for i in range(86)])
@@ -16,44 +20,72 @@ X, Y = np.meshgrid(wavNumb,freq)
 wavLabel='$\\frac{kd}{2\\pi}$'
 freqLabel='$\\frac{\\omega t_d}{2\\pi}$'
 cases = {
-    'we_02'          :{'We':.02, 'col':cmap(0)},
-    'we_05PSpec'     :{'We':.05, 'col':cmap(.25)},
-    'we_08'          :{'We':.08, 'col':cmap(.5)},
-    'we_10'          :{'We':.10, 'col':cmap(.75)}
+    'we_02'          :{'We':.2, 'col':cmap(0)},
+    'we_05PSpec'     :{'We':.5, 'col':cmap(.25)},
+    'we_08'          :{'We':.8, 'col':cmap(.5)},
+    'we_10'          :{'We':1, 'col':cmap(.75)}
        }
 for dirName, case in cases.items():
   case['rho']=case['We']
-  case['WeJfm21'] = case['We']*3.63/.1
+  case['WeJfm21'] = case['We']*3.63
   case['tsig'] = ( case['rho'] * diam**3 / sigma ) **.5
   case['Oh'] = nu * case['rho']**.5  / ( diam * sigma) ** .5
   case['dHinze'] = .725 * sigma**(3/5) * case['rho']**(-3/5) * diss**(-2/5)
+  #print(f"{dirName}  Oh {case['Oh']:.3g} dHinze {case['dHinze']/2/np.pi:.3g} tsig {case['tsig']/TL:.3g}")
+  #print(case['col'])
 
 def energyVsFreq(): 
   fig, ax = plt.subplots(1, 2, figsize=(6.4*100/70,  4.8*50/70))
-  #fig.subplots_adjust(left=0.1, right=0.95, top=0.95, bottom=0.1, wspace=0.1, hspace=0.05)
+  fig.subplots_adjust(left=0.1, right=0.95, top=0.95, bottom=0.1, wspace=0.5, hspace=0.05)
   for a in ax:
     a.tick_params(which='both', direction='in', top=True, right=True)
     a.set_xscale('log')
     a.set_xlim([1,100])
-    a.set_xlabel('$\\frac{kL}{2\\pi},\\,\\, \\frac{\\omega T_L}{2\\pi}$', size=20)
-  ax[0].set_ylabel("$\\frac{2\\pi E(k)}{L u'^2},\\,\\, \\frac{2\\pi E(\\omega)}{T_L u'^2}$", size=20)
+    a.set_xlabel('$\\frac{kL}{2\\pi},\\,\\frac{\\omega T}{2\\pi}$', size=20)
+    #a.set_xlabel('$kL,\\,\\omega T$')
+  #ax[0].set_ylabel("$\\,\\frac{E(\\omega)}{T u'^2}$", size=20)
+  #ax[0].text(-0.27, 0.55, r"$\frac{E(k)}{L u'^2},$", fontsize=20, transform=ax[0].transAxes)
+  #ax[0].text(-0.27, 0.35, r"$\frac{E(\omega)}{T u'^2}$", fontsize=20, transform=ax[0].transAxes)
+  ax[0].text(-0.33, 0.55, r"$\frac{2\pi E(k)}{L u'^2},$", fontsize=20, transform=ax[0].transAxes)
+  ax[0].text(-0.33, 0.35, r"$\frac{2\pi E(\omega)}{T u'^2}$", fontsize=20, transform=ax[0].transAxes)
   ax[0].set_yscale('log')
-  #ax[0].set_ylim([1e-8,1])
-  ax[1].set_ylabel('$\\frac{\\mathbf{\\hat f_\\sigma\\cdot\\hat u^*}\omega t_d}{2\\pi\\epsilon}$', rotation=0, labelpad=15, size=22)
+  ax[0].set_ylim([1e-8,1])
+  #ax[1].set_ylabel('$\\frac{\\mathbf{\\hat f_\\sigma\\cdot\\hat u^*}\omega t_d}{2\\pi\\epsilon}$', rotation=0, labelpad=15, size=20)
+  #ax[1].set_ylabel("$\\frac{\\mathbf{\\tilde f}(\\omega)\\cdot\\mathbf{\\tilde u^*}(\\omega)\\omega T}{u'^2}$", rotation=0, labelpad=15, size=20)
+  #ax[1].set_ylabel("$\\Phi(\\omega)\\omega T/u'^2,\\,\\Phi(k)k L/u'^2$")
+  #ax[1].text("\\frac{$\\Phi(\\omega)\\omega T}{u'^2}$", (-.1,.5), size=20)
+  ax[1].text(-0.36, 0.55, r"$\frac{\Phi(k)k L}{2\pi u'^2},$", fontsize=20, transform=ax[1].transAxes)
+  ax[1].text(-0.36, 0.35, r"$\frac{\Phi(\omega)\omega T}{2\pi u'^2}$", fontsize=20, transform=ax[1].transAxes)
+  ylim=[-.8,.6]
+  ax[1].set_ylim(ylim)
+  ax[1].set_yticks([-.8,-.4,0,.4])
   #ax[1].set_ylabel('$\\Pi$', rotation=0)
   secax = ax[1].secondary_xaxis(0, transform=ax[1].transData)
   secax.tick_params(which='both', direction='in', top=True, right=True)
   secax.tick_params(labelbottom=False, labeltop=False, bottom=True, top=True, direction='inout')
-  uRms = 1.25
-  L=2*np.pi
-  TL=L/uRms
+  insax = ax[1].inset_axes((.5,.05,.45,.35))
+  insax.xaxis.set_label_position("top")
+  insax.xaxis.tick_top()
+  insax.set_xlabel('$\\mathrm{We}$', rotation=0)
+  insax.text(-.4, .65, r"$\frac{l_\Phi}{d},$", fontsize=20, transform=insax.transAxes)
+  insax.text(-.4, .25, r"$\frac{t_\Phi}{t_d}$", fontsize=20, transform=insax.transAxes)
+  insax.set_xlim([0,4])
+  insax.set_ylim([.6,1.4])
+  insax.set_xticks([0,1,2,3,4])
+  insax.set_yticks([.6,1,1.4])
+  insax.tick_params(which='both', direction='in', top=True, right=True, bottom=True)
   wav = np.array([i for i in range(86)])
   omega = np.array([i*TL/timestep/100 for i in range(51)])
+  ax[0].plot([3,3], [1e-8,1], c='grey')
+  ax[1].plot([3,3], ylim, c='grey')
+  ax[0].plot([TL/td,TL/td], [1e-8,1], ls='dashed', c='grey')
+  ax[1].plot([TL/td,TL/td], ylim, ls='dashed', c='grey')
   ax[0].plot(wav, wav**(-5/3), c='grey')
   for dirName, case in cases.items():
     print(dirName)
     count=0
     allSpec=[]
+    allWav=[]
     E=np.zeros(51)
     Ewav=np.zeros(86)
     for i in range(1000):
@@ -70,12 +102,16 @@ def energyVsFreq():
       fname = '../'+dirName+f'/FSpec_run_break_{i:03}.txt'
       with open(fname, encoding = 'utf-8') as f:
         df = np.loadtxt(f)
-      F = np.array([np.sum(df[:,i]*omega[i]) for i in range(51)])
       #df[:,0]=0
       #F = np.array([np.sum(df[:,:i]) for i in range(51)])
+      F = np.array([np.sum(-df[:,i]*omega[i]) for i in range(51)])
       F/=case['We']
       F/=256**2
       allSpec.append(F)
+      F = np.array([np.sum(-df[i,:]*wav[i]) for i in range(86)])
+      F/=case['We']
+      F/=256**2
+      allWav.append(F)
     
     print('count',count)
     specData = np.stack(allSpec, axis=0)
@@ -84,12 +120,28 @@ def energyVsFreq():
     l = np.nanpercentile(specData, 25, axis=0)
     u = np.nanpercentile(specData, 75, axis=0)
     m = np.nanmean(specData, axis=0)
-    #diss = 2*E*omega**2
-    #D = np.array([np.sum(diss[:i]) for i in range(51)])
-    #ax[1].plot([td/case['tsig'], td/case['tsig']], [-8E4,8E4], c=case['col'], alpha=.3)
-    ax[1].fill_between(omega, l, u, color=case['col'], alpha=0.3, edgecolor='none') 
-    ax[1].plot(omega, m, c=case['col'], alpha=0.85)
-    #ax[1].plot(omega, D, c=case['col'], alpha=0.85)
+    #ax[1].fill_between(omega, l, u, color=case['col'], alpha=0.3, edgecolor='none') 
+    ax[1].plot(omega, m, c=case['col'], ls='dashed')
+    sigInd = int(TL/case['tsig'])
+    ax[1].plot(sigInd, m[sigInd], 'o', c=case['col'], mfc='None')
+    for i in range(len(m)-1):
+      if m[i]*m[i+1]<0:
+        flipTime = 1 / ( omega[i] - m[i] * (omega[i+1] - omega[i]) / (m[i+1] - m[i]) )
+        insax.plot(case['WeJfm21'], TL*flipTime/td, 'o', c=case['col'], mfc='None', clip_on=False)
+    specData = np.stack(allWav, axis=0)
+    specData[:,0]=np.nan
+    specData[:,-1]=np.nan
+    l = np.nanpercentile(specData, 25, axis=0)
+    u = np.nanpercentile(specData, 75, axis=0)
+    m = np.nanmean(specData, axis=0)
+    #ax[1].fill_between(wav, l, u, color=case['col'], alpha=0.3, edgecolor='none') 
+    ax[1].plot(wav, m, c=case['col'])
+    hinzInd = int(2*np.pi/case['dHinze'])
+    ax[1].plot(hinzInd, m[hinzInd], 'o', c=case['col'])
+    for i in range(len(m)-1):
+      if m[i]*m[i+1]<0:
+        flipLen = 1 / ( wav[i] - m[i] * (wav[i+1] - wav[i]) / (m[i+1] - m[i]) )
+        insax.plot(case['WeJfm21'], flipLen*3, 'o', c=case['col'], clip_on=False)
     
     invUMeanSq = 1.5 / sum(Ewav) 
     #invUMeanSq = 1 / 256**3
@@ -100,9 +152,11 @@ def energyVsFreq():
     Ewav[0]=np.nan
     lbl = rf"$\mathrm{{We}}={case['WeJfm21']:.1f}$"
     ax[0].plot(omega, E, ls='dashed', c=case['col'])
+    ax[0].plot(sigInd, E[sigInd], 'o', c=case['col'], mfc='None')
     ax[0].plot(wav, Ewav, label=lbl, c=case['col'])
+    ax[0].plot(hinzInd, Ewav[hinzInd], 'o', c=case['col'])
+    #ax[0].plot(3, Ewav[3], 'o', c=case['col'])
     
-  ax[0].legend()
   fname = 'plots/energyVsFreq.pdf'
   print('savin ',fname)
   fig.savefig(fname, bbox_inches='tight', transparent=True, format='pdf', dpi=600)

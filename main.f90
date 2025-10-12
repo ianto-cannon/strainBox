@@ -8,7 +8,8 @@ integer, parameter :: startTime=19, nTimes=100, n=256
 integer, parameter :: kAlias=int((2.0/3.0)* (n/2))
 real, parameter :: pi=3.14159265358979, dx=1.0, l=n*dx
 logical :: fileExists
-character(len=200) :: filename, runName, weName='we_05/', inDir, outDir='../we_05PSpec/', fileEnd, str
+character(len=200) :: filename, runName, weName='we_05/', inDir, fileEnd, str
+character(len=200) :: outDir='../we_05PSpec/'
 integer :: i,j,k,t,im,jm,km,tm,error,intR,ntask,rank
 integer :: ios,dirU,specU,forcU,fPosU,fNegU,fImaU,pSpcU
 integer(hid_t) :: file_id, dset_id
@@ -73,6 +74,7 @@ do
       call h5dopen_f(file_id, 'u', dset_id, error)
         call h5dread_f(dset_id, H5T_NATIVE_REAL, dxxPhase, dims, error)
       call h5dclose_f(dset_id, error)
+      write(*,*) 'u2', sum(dxxPhase**2)
       window = 1. - cos( 2.0*pi*(t-1.) / (nTimes-1.) )
       !tanh window
       !if(t.lt.10) then 
@@ -92,6 +94,7 @@ do
       call h5dopen_f(file_id, 'v', dset_id, error)
         call h5dread_f(dset_id, H5T_NATIVE_REAL, dxxPhase, dims, error)
       call h5dclose_f(dset_id, error)
+      write(*,*) 'v2', sum(dxxPhase**2)
       do k=1,n
         do j=1,n
           do i=1,n
@@ -103,6 +106,7 @@ do
         call h5dread_f(dset_id, H5T_NATIVE_REAL, dxxPhase, dims, error)
       call h5dclose_f(dset_id, error)
     call h5fclose_f(file_id, error)
+    write(*,*) 'w2', sum(dxxPhase**2)
     do k=1,n
       do j=1,n
         do i=1,n
