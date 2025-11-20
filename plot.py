@@ -8,11 +8,13 @@ diss = 1
 sigma=2*2**.5/3
 diam=2*np.pi/3
 vis=.219 #from measurements of rmsVel and Re_lambda=58
-td=diam**(2/3.)
-print('td',td)
 uRms = 1.25
 L=2*np.pi
 TL=L/uRms
+td=diam**(2/3.)
+print(f"td {td/TL:.3g}")
+tvis=diam**2/nu
+print(f"tvis {tvis/TL:.3g}")
 cmap = plt.get_cmap('plasma')
 freq = np.array([i*td/timestep/100 for i in range(51)])
 wavNumb = np.array([i/3 for i in range(86)])
@@ -21,7 +23,7 @@ wavLabel='$\\frac{kd}{2\\pi}$'
 freqLabel='$\\frac{\\omega t_d}{2\\pi}$'
 cases = {
     'we_02'          :{'We':.2, 'col':cmap(0)},
-    'we_05PSpec'     :{'We':.5, 'col':cmap(.25)},
+    'we_05PSpec'     :{'We':.5, 'col':'k'},#cmap(.25)},
     'we_08'          :{'We':.8, 'col':cmap(.5)},
     'we_10'          :{'We':1, 'col':cmap(.75)}
        }
@@ -31,7 +33,7 @@ for dirName, case in cases.items():
   case['tsig'] = ( case['rho'] * diam**3 / sigma ) **.5
   case['Oh'] = nu * case['rho']**.5  / ( diam * sigma) ** .5
   case['dHinze'] = .725 * sigma**(3/5) * case['rho']**(-3/5) * diss**(-2/5)
-  #print(f"{dirName}  Oh {case['Oh']:.3g} dHinze {case['dHinze']/2/np.pi:.3g} tsig {case['tsig']/TL:.3g}")
+  print(f"{dirName}  Oh {case['Oh']:.3g} dHinze {case['dHinze']/2/np.pi:.3g} tsig {case['tsig']/TL:.3g}")
   #print(case['col'])
 
 def energyVsFreq(): 
@@ -63,17 +65,18 @@ def energyVsFreq():
   secax = ax[1].secondary_xaxis(0, transform=ax[1].transData)
   secax.tick_params(which='both', direction='in', top=True, right=True)
   secax.tick_params(labelbottom=False, labeltop=False, bottom=True, top=True, direction='inout')
-  insax = ax[1].inset_axes((.5,.05,.45,.35))
-  insax.xaxis.set_label_position("top")
-  insax.xaxis.tick_top()
-  insax.set_xlabel('$\\mathrm{We}$', rotation=0)
-  insax.text(-.4, .65, r"$\frac{l_\Phi}{d},$", fontsize=20, transform=insax.transAxes)
-  insax.text(-.4, .25, r"$\frac{t_\Phi}{t_d}$", fontsize=20, transform=insax.transAxes)
-  insax.set_xlim([0,4])
-  insax.set_ylim([.6,1.4])
-  insax.set_xticks([0,1,2,3,4])
-  insax.set_yticks([.6,1,1.4])
-  insax.tick_params(which='both', direction='in', top=True, right=True, bottom=True)
+  insax = False#ax[1].inset_axes((.5,.05,.45,.35))
+  if insax:
+    insax.xaxis.set_label_position("top")
+    insax.xaxis.tick_top()
+    insax.set_xlabel('$\\mathrm{We}$', rotation=0)
+    insax.text(-.4, .65, r"$\frac{l_\Phi}{d},$", fontsize=20, transform=insax.transAxes)
+    insax.text(-.4, .25, r"$\frac{t_\Phi}{t_d}$", fontsize=20, transform=insax.transAxes)
+    insax.set_xlim([0,4])
+    insax.set_ylim([.6,1.4])
+    insax.set_xticks([0,1,2,3,4])
+    insax.set_yticks([.6,1,1.4])
+    insax.tick_params(which='both', direction='in', top=True, right=True, bottom=True)
   wav = np.array([i for i in range(86)])
   omega = np.array([i*TL/timestep/100 for i in range(51)])
   ax[0].plot([3,3], [1e-8,1], c='grey')
@@ -82,6 +85,7 @@ def energyVsFreq():
   ax[1].plot([TL/td,TL/td], ylim, ls='dashed', c='grey')
   ax[0].plot(wav, wav**(-5/3), c='grey')
   for dirName, case in cases.items():
+    if '05' not in dirName:continue
     print(dirName)
     count=0
     allSpec=[]
@@ -127,7 +131,7 @@ def energyVsFreq():
     for i in range(len(m)-1):
       if m[i]*m[i+1]<0:
         flipTime = 1 / ( omega[i] - m[i] * (omega[i+1] - omega[i]) / (m[i+1] - m[i]) )
-        insax.plot(case['WeJfm21'], TL*flipTime/td, 'o', c=case['col'], mfc='None', clip_on=False)
+        if insax: insax.plot(case['WeJfm21'], TL*flipTime/td, 'o', c=case['col'], mfc='None', clip_on=False)
     specData = np.stack(allWav, axis=0)
     specData[:,0]=np.nan
     specData[:,-1]=np.nan
@@ -141,7 +145,7 @@ def energyVsFreq():
     for i in range(len(m)-1):
       if m[i]*m[i+1]<0:
         flipLen = 1 / ( wav[i] - m[i] * (wav[i+1] - wav[i]) / (m[i+1] - m[i]) )
-        insax.plot(case['WeJfm21'], flipLen*3, 'o', c=case['col'], clip_on=False)
+        if insax: insax.plot(case['WeJfm21'], flipLen*3, 'o', c=case['col'], clip_on=False)
     
     invUMeanSq = 1.5 / sum(Ewav) 
     #invUMeanSq = 1 / 256**3
@@ -380,7 +384,7 @@ def surPowFreqVsWav():
     fig.savefig(fname, bbox_inches='tight', transparent=True, format='pdf', dpi=600)
   return
 
-energyVsFreq()
+#energyVsFreq()
 #surPowVsFreq()
 #energyWindowsVsFreq()
 #energyFreqVsWav()

@@ -7,10 +7,10 @@ include 'fftw3.f03'
 integer, parameter :: startTime=19, nTimes=100, n=256
 integer, parameter :: kAlias=int((2.0/3.0)* (n/2))
 real, parameter :: pi=3.14159265358979, dx=1.0, l=n*dx
-logical :: fileExists
-character(len=200) :: filename, runName, weName='we_05/', inDir, fileEnd, str
-character(len=200) :: outDir='../we_05PSpec/'
-integer :: i,j,k,t,im,jm,km,tm,error,intR,ntask,rank
+logical :: fileExists, drops=.false.
+character(len=200) :: filename, runName, weName='ForIanto/', inDir, fileEnd, str
+character(len=200) :: outDir='../we_inf/'
+integer :: i,j,k,t,im,jm,km,tm,error,intR
 integer :: ios,dirU,specU,forcU,fPosU,fNegU,fImaU,pSpcU
 integer(hid_t) :: file_id, dset_id
 integer(hsize_t) :: dims(3)=(/n,n,n/),  dims1d(1)=(/1/) 
@@ -21,9 +21,6 @@ complex, dimension(n/2+1,n,n) :: cH,cPotH,dxCPotH,dyCPotH,dzCPotH
 complex, dimension(n,n,n,nTimes) :: phase,u,v,w,suX,suY,suZ
 complex :: surPow
 type(C_PTR)  :: plan, plan_inverse, plan4
-!call mpi_init(error)
-!call mpi_comm_rank(mpi_comm_world,rank,error)
-!call mpi_comm_size(mpi_comm_world,ntask,error)
 plan        =fftwf_plan_dft_r2c_3d(n, n, n, cPot, cPotH, FFTW_ESTIMATE)
 plan_inverse=fftwf_plan_dft_c2r_3d(n, n, n, cPotH, cPot, FFTW_ESTIMATE)
 plan4       =fftwf_plan_dft(4, [nTimes, n, n, n], u, u, 1, FFTW_ESTIMATE)
@@ -44,27 +41,28 @@ do
     filename=trim(inDir)//'/field.'//trim(str)//'.h5'
     write(*,*) trim(filename)
     flush(6)
-    ! Open the file (read-only)
-    !call mpi_barrier(mpi_comm_world,error)
-    !write(*,*)'ntastk',ntask,'rank',rank
     call h5open_f(error)
     call h5fopen_f(filename, H5F_ACC_RDONLY_F, file_id, error)
-      call h5dopen_f(file_id, 'Cn', dset_id, error)
-        call h5dread_f(dset_id, H5T_NATIVE_REAL, Cn, dims1d, error)
-      call h5dclose_f(dset_id, error)
-      call h5dopen_f(file_id, 'We', dset_id, error)
-        call h5dread_f(dset_id, H5T_NATIVE_REAL, We, dims1d, error)
-      call h5dclose_f(dset_id, error)
-      call h5dopen_f(file_id, 'c', dset_id, error)
-        call h5dread_f(dset_id, H5T_NATIVE_REAL, dxxPhase, dims, error)
-      call h5dclose_f(dset_id, error)
-      do k=1,n
-        do j=1,n
-          do i=1,n
-            phase(i,j,k,t) = dxxPhase(k,j,i)
+      if(drops)then
+        call h5dopen_f(file_id, 'Cn', dset_id, error)
+          call h5dread_f(dset_id, H5T_NATIVE_REAL, Cn, dims1d, error)
+        call h5dclose_f(dset_id, error)
+        call h5dopen_f(file_id, 'We', dset_id, error)
+          call h5dread_f(dset_id, H5T_NATIVE_REAL, We, dims1d, error)
+        call h5dclose_f(dset_id, error)
+        call h5dopen_f(file_id, 'c', dset_id, error)
+          call h5dread_f(dset_id, H5T_NATIVE_REAL, dxxPhase, dims, error)
+        call h5dclose_f(dset_id, error)
+        do k=1,n
+          do j=1,n
+            do i=1,n
+              phase(i,j,k,t) = dxxPhase(k,j,i)
+            enddo
           enddo
         enddo
-      enddo
+      else 
+        phase(:,:,:,t)=-1
+      endif
       call h5dopen_f(file_id, 'res', dset_id, error)
         call h5dread_f(dset_id, H5T_NATIVE_REAL, res, dims1d, error)
       call h5dclose_f(dset_id, error)
@@ -253,6 +251,5 @@ call fftw_destroy_plan(plan4)
 call fftw_cleanup()
 call system('rm '//trim(outDir)//'dir_list.txt')
 write(6,*) 'This is the end'
-!call mpi_finalize(error)
 return
 end program spectrum
