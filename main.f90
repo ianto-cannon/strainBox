@@ -21,6 +21,9 @@ complex, dimension(n/2+1,n,n) :: cH,cPotH,dxCPotH,dyCPotH,dzCPotH
 complex, dimension(n,n,n,nTimes) :: phase,u,v,w,suX,suY,suZ
 complex :: surPow
 type(C_PTR)  :: plan, plan_inverse, plan4
+!call mpi_init(error)
+!call mpi_comm_rank(mpi_comm_world,rank,error)
+!call mpi_comm_size(mpi_comm_world,ntask,error)
 plan        =fftwf_plan_dft_r2c_3d(n, n, n, cPot, cPotH, FFTW_ESTIMATE)
 plan_inverse=fftwf_plan_dft_c2r_3d(n, n, n, cPotH, cPot, FFTW_ESTIMATE)
 plan4       =fftwf_plan_dft(4, [nTimes, n, n, n], u, u, 1, FFTW_ESTIMATE)
@@ -41,6 +44,9 @@ do
     filename=trim(inDir)//'/field.'//trim(str)//'.h5'
     write(*,*) trim(filename)
     flush(6)
+    ! Open the file (read-only)
+    !call mpi_barrier(mpi_comm_world,error)
+    !write(*,*)'ntastk',ntask,'rank',rank
     call h5open_f(error)
     call h5fopen_f(filename, H5F_ACC_RDONLY_F, file_id, error)
       if(drops)then
@@ -251,5 +257,6 @@ call fftw_destroy_plan(plan4)
 call fftw_cleanup()
 call system('rm '//trim(outDir)//'dir_list.txt')
 write(6,*) 'This is the end'
+!call mpi_finalize(error)
 return
 end program spectrum

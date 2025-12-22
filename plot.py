@@ -3,18 +3,30 @@ import matplotlib.pyplot as plt
 plt.rcdefaults()
 plt.rcParams.update({"text.usetex": True,'font.size' : 14,})
 timestep=.05
-nu=1 #kinematic viscosity
 diss = 1
 sigma=2*2**.5/3
-diam=2*np.pi/3
-vis=.219 #from measurements of rmsVel and Re_lambda=58
-uRms = 1.25
 L=2*np.pi
+diam=.3*L
+uRms = 1.25
 TL=L/uRms
+Kmax=2*np.pi*256/3/L
+lKol=4/Kmax
+print(f"lKol {lKol/L:.3g}")
+nu=(diss*lKol**4)**(1/3)
+print(f"nu {nu:.3g}")
 td=diam**(2/3.)
 print(f"td {td/TL:.3g}")
 tvis=diam**2/nu
 print(f"tvis {tvis/TL:.3g}")
+tKol=(nu/diss)**.5
+print(f"tKol {tKol/TL:.3g}")
+lTay=(15*nu*uRms**2/diss)**.5
+print(f"lTay {lTay/L:.3g}")
+ReTay=uRms*lTay/nu
+print(f"ReTay {ReTay:.3g}")
+ReDrop=(diss*diam)**(1/3)*diam/nu
+print(f"ReDrop {ReDrop:.3g}")
+print(f"normDiss {diss*.42*L/uRms**3:.3g}")
 cmap = plt.get_cmap('plasma')
 freq = np.array([i*td/timestep/100 for i in range(51)])
 wavNumb = np.array([i/3 for i in range(86)])
@@ -22,18 +34,17 @@ X, Y = np.meshgrid(wavNumb,freq)
 wavLabel='$\\frac{kd}{2\\pi}$'
 freqLabel='$\\frac{\\omega t_d}{2\\pi}$'
 cases = {
-    'we_02'          :{'We':.2, 'col':cmap(0)},
-    'we_05PSpec'     :{'We':.5, 'col':'k'},#cmap(.25)},
-    'we_08'          :{'We':.8, 'col':cmap(.5)},
-    'we_10'          :{'We':1, 'col':cmap(.75)}
+#    'we_02'          :{'rho':.2, 'col':cmap(0)},
+    'we_05PSpec'     :{'rho':.5, 'col':'k'},#cmap(.25)},
+#    'we_08'          :{'rho':.8, 'col':cmap(.5)},
+#    'we_10'          :{'rho':1, 'col':cmap(.75)}
        }
 for dirName, case in cases.items():
-  case['rho']=case['We']
-  case['WeJfm21'] = case['We']*3.63
+  case['We'] = case['rho'] * (diss*diam)**(2/3) * diam / sigma
   case['tsig'] = ( case['rho'] * diam**3 / sigma ) **.5
   case['Oh'] = nu * case['rho']**.5  / ( diam * sigma) ** .5
   case['dHinze'] = .725 * sigma**(3/5) * case['rho']**(-3/5) * diss**(-2/5)
-  print(f"{dirName}  Oh {case['Oh']:.3g} dHinze {case['dHinze']/2/np.pi:.3g} tsig {case['tsig']/TL:.3g}")
+  print(f"{dirName} We {case['We']:.3g} Oh {case['Oh']:.3g} dHinze {case['dHinze']/2/np.pi:.3g} tsig {case['tsig']/TL:.3g}")
   #print(case['col'])
 
 def energyVsFreq(): 
@@ -109,11 +120,11 @@ def energyVsFreq():
       #df[:,0]=0
       #F = np.array([np.sum(df[:,:i]) for i in range(51)])
       F = np.array([np.sum(-df[:,i]*omega[i]) for i in range(51)])
-      F/=case['We']
+      F/=case['rho']
       F/=256**2
       allSpec.append(F)
       F = np.array([np.sum(-df[i,:]*wav[i]) for i in range(86)])
-      F/=case['We']
+      F/=case['rho']
       F/=256**2
       allWav.append(F)
     
@@ -131,7 +142,7 @@ def energyVsFreq():
     for i in range(len(m)-1):
       if m[i]*m[i+1]<0:
         flipTime = 1 / ( omega[i] - m[i] * (omega[i+1] - omega[i]) / (m[i+1] - m[i]) )
-        if insax: insax.plot(case['WeJfm21'], TL*flipTime/td, 'o', c=case['col'], mfc='None', clip_on=False)
+        if insax: insax.plot(case['We'], TL*flipTime/td, 'o', c=case['col'], mfc='None', clip_on=False)
     specData = np.stack(allWav, axis=0)
     specData[:,0]=np.nan
     specData[:,-1]=np.nan
@@ -145,7 +156,7 @@ def energyVsFreq():
     for i in range(len(m)-1):
       if m[i]*m[i+1]<0:
         flipLen = 1 / ( wav[i] - m[i] * (wav[i+1] - wav[i]) / (m[i+1] - m[i]) )
-        if insax: insax.plot(case['WeJfm21'], flipLen*3, 'o', c=case['col'], clip_on=False)
+        if insax: insax.plot(case['We'], flipLen*3, 'o', c=case['col'], clip_on=False)
     
     invUMeanSq = 1.5 / sum(Ewav) 
     #invUMeanSq = 1 / 256**3
@@ -154,7 +165,7 @@ def energyVsFreq():
     E[0]=np.nan
     E[-1]=np.nan
     Ewav[0]=np.nan
-    lbl = rf"$\mathrm{{We}}={case['WeJfm21']:.1f}$"
+    lbl = rf"$\mathrm{{We}}={case['We']:.1f}$"
     ax[0].plot(omega, E, ls='dashed', c=case['col'])
     ax[0].plot(sigInd, E[sigInd], 'o', c=case['col'], mfc='None')
     ax[0].plot(wav, Ewav, label=lbl, c=case['col'])
@@ -195,7 +206,7 @@ def surPowVsFreq():
         continue
       count+=1
       F = np.array([np.sum(df[:,i]*freq[i]) for i in range(51)])
-      F/=stat['We']
+      F/=stat['rho']
       if 'we_05windowing'in dirName: F*=4
       E += (F -E)/count
       allSpec.append(F)
