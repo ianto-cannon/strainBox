@@ -10,7 +10,7 @@ real, parameter :: pi=3.14159265358979, dx=1.0, l=n*dx
 logical :: fileExists, drops=.false.
 character(len=200) :: filename, runName, weName='ForIanto/', inDir, fileEnd, str
 character(len=200) :: outDir='../we_inf/'
-integer :: i,j,k,t,im,jm,km,tm,error,intR
+integer :: i,j,k,t,im,jm,km,tm,error,intR,ntask,rank
 integer :: ios,dirU,specU,forcU,fPosU,fNegU,fImaU,pSpcU
 integer(hid_t) :: file_id, dset_id
 integer(hsize_t) :: dims(3)=(/n,n,n/),  dims1d(1)=(/1/) 
@@ -33,12 +33,16 @@ open(newunit=dirU, file=trim(outDir)//'dir_list.txt', status='old', action='read
 do
   read(dirU, '(A)', iostat=ios) runName
   if (ios /= 0) exit
-  !if (trim(runName).ne.'run_break_002') cycle
+  if (trim(runName).ne.'field.000.h5') cycle
+  runName=''
   inDir='/home/alberto.velamartin/drop_time/'//trim(weName)//trim(runName)
   write(*,*) trim(inDir)
   write(str,'(i3.3)') startTime+nTimes-1
   inquire(file=trim(inDir)//'/field.'//trim(str)//'.h5', exist=fileExists)
-  if (.not.fileExists) cycle
+  if (.not.fileExists) then
+    write(*,*) trim(inDir)//'/field.'//trim(str)//'.h5', 'NoEexist'
+    cycle
+  endif
   do t=1,nTimes
     write(str,'(i3.3)') t+startTime
     filename=trim(inDir)//'/field.'//trim(str)//'.h5'
@@ -46,7 +50,7 @@ do
     flush(6)
     ! Open the file (read-only)
     !call mpi_barrier(mpi_comm_world,error)
-    !write(*,*)'ntastk',ntask,'rank',rank
+    write(*,*)'ntastk',ntask,'rank',rank
     call h5open_f(error)
     call h5fopen_f(filename, H5F_ACC_RDONLY_F, file_id, error)
       if(drops)then

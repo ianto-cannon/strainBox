@@ -2,7 +2,7 @@ HDF5_INC = $(HOME)/drops/boxStrain/src/lib/hdf5_parallel/include
 HDF5_LIB = $(HOME)/drops/boxStrain/src/lib/hdf5_parallel/lib
 
 # Compiler and flags
-FC = mpif90
+FC = gfortran #mpif90
 DBG = -O0 -Wall -fcheck=all -g #-fsanitize=address -fno-omit-frame-pointer
 FFLAGS = -mcmodel=large -fconvert=big-endian -ffixed-line-length-140 -fno-align-commons -cpp \
          -I$(HDF5_INC) -O3 $(DBG)
