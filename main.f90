@@ -7,9 +7,9 @@ include 'fftw3.f03'
 integer, parameter :: startTime=19, nTimes=100, n=256
 integer, parameter :: kAlias=int((2.0/3.0)* (n/2))
 real, parameter :: pi=3.14159265358979, dx=1.0, l=n*dx
-logical :: fileExists, drops=.false.
-character(len=200) :: filename, runName, weName='ForIanto/', inDir, fileEnd, str
-character(len=200) :: outDir='../we_inf/'
+logical :: fileExists, drops=.true.
+character(len=200) :: filename, runName, weName='we_02/', inDir, fileEnd, str
+character(len=200) :: outDir='../we_02PSpec/'
 integer :: i,j,k,t,im,jm,km,tm,error,intR,ntask,rank
 integer :: ios,dirU,specU,forcU,fPosU,fNegU,fImaU,pSpcU
 integer(hid_t) :: file_id, dset_id
@@ -33,8 +33,6 @@ open(newunit=dirU, file=trim(outDir)//'dir_list.txt', status='old', action='read
 do
   read(dirU, '(A)', iostat=ios) runName
   if (ios /= 0) exit
-  if (trim(runName).ne.'field.000.h5') cycle
-  runName=''
   inDir='/home/alberto.velamartin/drop_time/'//trim(weName)//trim(runName)
   write(*,*) trim(inDir)
   write(str,'(i3.3)') startTime+nTimes-1
