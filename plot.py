@@ -164,7 +164,62 @@ def energyVsFreq():
   fig.savefig(fname, bbox_inches='tight', transparent=True, format='pdf', dpi=600)
   return
 
-def interfaceVsFreq(): 
+def interfaceVsFreq():
+  fig, ax = plt.subplots(1, 3, figsize=(13.5, 3))
+  for a in ax:
+    a.tick_params(which='both', direction='in', top=True, right=True)
+    a.set_xscale('log')
+    a.set_xlim(wavNumb[1], wavNumb[-1])
+    a.text(.4, -.14, r'$\frac{kd}{2\pi},$', size=20, transform=a.transAxes)
+    a.text(.53, -.14, r'$\frac{\omega t_d}{2\pi}$', size=20, transform=a.transAxes)
+  ax[0].set(yscale='log')#, ylim=(1e-8, 1))
+  #ax[1].set_ylim(-15e-9, 1e-8)
+  ax[2].set(yscale='log')#, ylim=(1e-8, 1))
+  ax[0].set_ylabel(r"$E(k), E(\omega)$")
+  ax[1].set_ylabel(r"$F(k), F(\omega)$")
+  ax[2].set_ylabel(r"$A(k), A(\omega)$", labelpad=-10)
+  insax = ax[1].inset_axes((.5, .05, .45, .35))
+  insax.set(xlim=(0, 4), ylim=(.5, 1.5), xticks=[0,1,2,3,4])
+  insax.tick_params(which='both', direction='in', top=True, right=True, bottom=True)
+  insax.xaxis.set_label_position("top")
+  insax.xaxis.tick_top()
+  insax.set_xlabel(r'$\mathrm{We}$')
+  insax.text(-.4, .65, r"$\frac{l_\Phi}{d},$", fontsize=20, transform=insax.transAxes)
+  insax.text(-.4, .25, r"$\frac{t_\Phi}{t_d}$", fontsize=20, transform=insax.transAxes)
+  def load(name):
+    try: return np.loadtxt(f'../plottedData/{name}.txt')
+    except FileNotFoundError: return None
+  def crossings(x, y):
+    i = np.where(y[:-1]*y[1:] < 0)[0]
+    return 1/(x[i] - y[i]*(x[i+1]-x[i])/(y[i+1]-y[i]))
+  for dirName, case in reversed(cases.items()):
+    print(dirName)
+    c = 'grey' if 'inf' in dirName else plt.cm.PiYG(case['We']/8)
+    sig = int(TL/case['tsig'])
+    hinz = int(2*np.pi/case['dHinze'])
+    for i, (tag, func) in enumerate([
+      ("ESpecdf", lambda df: (df.sum(1)*case['rho']/(4*np.pi*.15**2), df.sum(0)*case['rho']/(4*np.pi*.15**2))),
+      ("FSpecdf", lambda df: (
+        -(df/case['rho']/256**2 * freq[:,None]).sum(1)/(4*np.pi*.15**2),
+        -(df/case['rho']/256**2 * wavNumb[None,:]).sum(0)/(4*np.pi*.15**2)
+      )),
+      ("PSpecdf", lambda df: (df.sum(1)/(4*np.pi*.15**2), df.sum(0)/(4*np.pi*.15**2)))
+    ]):
+      df = load(dirName + tag)
+      if df is None: continue
+      y, yk = func(df)
+      y[[0,-1]] = yk[[0,-1]] = np.nan
+      a = ax[i]
+      a.plot(freq, y, c=c, ls='dashed')
+      a.plot(freq[sig], y[sig], 'o', c=c, mfc='none')
+      a.plot(wavNumb, yk, c=c)
+      if hinz < len(yk): a.plot(wavNumb[hinz], yk[hinz], 'o', c=c)
+      if tag == "FSpecdf":
+        for z in crossings(freq, y): insax.plot(case['We'], z, 'o', c=c, mfc='none', clip_on=False)
+        for z in crossings(wavNumb, yk): insax.plot(case['We'], z, 'o', c=c, clip_on=False)
+  fig.savefig('../plots/interfaceVsFreq.pdf', bbox_inches='tight', pad_inches=0.01, transparent=True)
+
+def interfaceVsFreqOrig(): 
   fig, ax = plt.subplots(1, 3, figsize=(4.5*3, 3))
   for a in ax:
     a.tick_params(which='both', direction='in', top=True, right=True)
@@ -522,8 +577,8 @@ def surPowFreqVsWav():
 interfaceVsFreq()
 #surPowVsFreq()
 #energyWindowsVsFreq()
-energyFreqVsWav('ESpec')
-energyFreqVsWav('FSpec')
+#energyFreqVsWav('ESpec')
+#energyFreqVsWav('FSpec')
 #energyFreqVsWav('PSpec')
 #phaseFreqVsWav()
 #surPowFreqVsWav()
