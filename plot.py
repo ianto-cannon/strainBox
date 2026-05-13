@@ -9,12 +9,15 @@ L=2*np.pi
 diam=.3*L
 uRms = 1.25
 TL=L/uRms
+#ud=(diam/L)**(1/3.)*uRms
+ud=(diss*diam/L)**(1/3.)
 Kmax=2*np.pi*256/3/L
 lKol=4/Kmax
 print(f"lKol {lKol/L:.3g}")
 nu=(diss*lKol**4)**(1/3)
 print(f"nu {nu:.3g}")
-td=diam**(2/3.)
+#td=diam**(2/3.)*L**(1/3.)/uRms
+td=diam/ud
 print(f"td {td/TL:.3g}")
 tvis=diam**2/nu
 print(f"tvis {tvis/TL:.3g}")
@@ -34,15 +37,18 @@ X, Y = np.meshgrid(wavNumb,freq)
 wavLabel='$\\frac{kd}{2\\pi}$'
 freqLabel='$\\frac{\\omega t_d}{2\\pi}$'
 cases = {
-    'we_02'          :{'rho':.2, 'col':cmap(0)},
+    #'we_02'          :{'rho':.2, 'col':cmap(0)},
+    #'we_05windowing' :{'rho':.5, 'col':'k'},
+    #'we_08'          :{'rho':.8, 'col':cmap(.5)},
+    #'we_10'          :{'rho':1, 'col':cmap(.75)},
+    'we_02PSpec'     :{'rho':.2, 'col':cmap(0)},
     'we_05PSpec'     :{'rho':.5, 'col':'k'},
-    'we_05windowing' :{'rho':.5, 'col':'k'},
-    'we_08'          :{'rho':.8, 'col':cmap(.5)},
-    'we_10'          :{'rho':1, 'col':cmap(.75)},
+    'we_08PSpec'     :{'rho':.8, 'col':cmap(.5)},
+    'we_10PSpec'     :{'rho':1, 'col':cmap(.75)},
     'we_inf'         :{'rho':1e8, 'col':'k'},
        }
 for dirName, case in cases.items():
-  case['We'] = case['rho'] * (diss*diam)**(2/3) * diam / sigma
+  case['We'] = case['rho'] * (diss*diam)**(2/3) * diam / sigma * 1.82/1.525 #gives We from VelaSciAdv
   case['tsig'] = ( case['rho'] * diam**3 / sigma ) **.5
   case['Oh'] = nu * case['rho']**.5  / ( diam * sigma) ** .5
   case['dHinze'] = .725 * sigma**(3/5) * case['rho']**(-3/5) * diss**(-2/5)
@@ -165,27 +171,46 @@ def energyVsFreq():
   return
 
 def interfaceVsFreq():
-  fig, ax = plt.subplots(1, 3, figsize=(13.5, 3))
-  for a in ax:
+  fig, ax = plt.subplots(1, 3, figsize=(11, 3), constrained_layout=True)
+  insax = [ax[0].inset_axes((.5, .05, .45, .35)), 
+           ax[1].inset_axes((.5, .05, .45, .35)),
+           ax[2].inset_axes((.07, .05, .45, .35))]
+  ax[0].set(yscale='log')
+  ax[2].set(yscale='log')
+  ax[0].set_ylim(1e-8,1e4)
+  ax[1].set_ylim(-65e-4,4e-3)
+  #ax[2].set_ylim(1e-3,2e-1)
+  ax[0].set_ylabel(r"$\tilde E(k), \tilde E(\omega)$")
+  ax[1].set_ylabel(r"$\tilde F(k)kd/2\pi, \tilde F(\omega)\omega t_d/2\pi$")
+  #ax[1].set_ylabel(r"$\frac{1}{2}F(k)kd\pi^{-1}u'^{-2}, \frac{1}{2}F(\omega)\omega t_d\pi^{-1}u'^{-2}$")
+  #ax[1].set_ylabel(r"$F(k)kd/(2\pi u'^2), F(\omega)\omega t_d/(\pi u'^2)$")
+  #ax[2].set_ylabel(r"$2A(k)d^{-3}, 2A(\omega)d^{-2}t_d^{-1}$")
+  ax[2].set_ylabel(r"$\tilde A(k), \tilde A(\omega)$")
+  ax[0].plot(wavNumb, 1e3*wavNumb**(-5/3), ls='solid', c='k', lw=.7)
+  ax[0].text(.6, .8, r'$10^3\left(\frac{kd}{2\pi}\right)^{-\frac{5}{3}}$', transform=ax[0].transAxes, rotation=-8)
+  insax[0].set_visible(False)
+  insax[1].text(-.5, .75, r"$\frac{l_\Phi}{d},$", fontsize=20, transform=insax[1].transAxes)
+  insax[1].text(-.5, .15, r"$\frac{t_\Phi}{t_d}$",fontsize=20, transform=insax[1].transAxes)
+  insax[2].text(1.3, .5,  r"$\frac{A}{\pi d^2}$", fontsize=20, transform=insax[2].transAxes)
+  insax[2].yaxis.set_label_position("right")
+  insax[2].yaxis.tick_right()
+  insax[1].set_ylim(.5,1)
+  insax[2].set_ylim(1,2.3)
+  insax[2].set_yticks([1,1.5,2,2.5])
+  secax = ax[1].secondary_xaxis(0, transform=ax[1].transData)
+  secax.tick_params(which='both', direction='in', top=True, right=True)
+  secax.tick_params(labelbottom=False, labeltop=False, bottom=True, top=True, direction='inout')
+  for a, ins in zip(ax,insax):
     a.tick_params(which='both', direction='in', top=True, right=True)
     a.set_xscale('log')
     a.set_xlim(wavNumb[1], wavNumb[-1])
     a.text(.4, -.14, r'$\frac{kd}{2\pi},$', size=20, transform=a.transAxes)
     a.text(.53, -.14, r'$\frac{\omega t_d}{2\pi}$', size=20, transform=a.transAxes)
-  ax[0].set(yscale='log')#, ylim=(1e-8, 1))
-  #ax[1].set_ylim(-15e-9, 1e-8)
-  ax[2].set(yscale='log')#, ylim=(1e-8, 1))
-  ax[0].set_ylabel(r"$E(k), E(\omega)$")
-  ax[1].set_ylabel(r"$F(k), F(\omega)$")
-  ax[2].set_ylabel(r"$A(k), A(\omega)$", labelpad=-10)
-  insax = ax[1].inset_axes((.5, .05, .45, .35))
-  insax.set(xlim=(0, 4), ylim=(.5, 1.5), xticks=[0,1,2,3,4])
-  insax.tick_params(which='both', direction='in', top=True, right=True, bottom=True)
-  insax.xaxis.set_label_position("top")
-  insax.xaxis.tick_top()
-  insax.set_xlabel(r'$\mathrm{We}$')
-  insax.text(-.4, .65, r"$\frac{l_\Phi}{d},$", fontsize=20, transform=insax.transAxes)
-  insax.text(-.4, .25, r"$\frac{t_\Phi}{t_d}$", fontsize=20, transform=insax.transAxes)
+    ins.set(xlim=(0, 4), xticks=[0,1,2,3,4])#ylim=(.5, 1.5), 
+    ins.xaxis.set_label_position("top")
+    ins.xaxis.tick_top()
+    ins.tick_params(which='both', direction='in', left=True, top=True, right=True, bottom=True)
+    ins.set_xlabel(r'$\mathrm{We}$')
   def load(name):
     try: return np.loadtxt(f'../plottedData/{name}.txt')
     except FileNotFoundError: return None
@@ -198,113 +223,35 @@ def interfaceVsFreq():
     sig = int(TL/case['tsig'])
     hinz = int(2*np.pi/case['dHinze'])
     for i, (tag, func) in enumerate([
-      ("ESpecdf", lambda df: (df.sum(1)*case['rho']/(4*np.pi*.15**2), df.sum(0)*case['rho']/(4*np.pi*.15**2))),
+      ("ESpecdf", lambda df: (df.sum(1)*2/ud**2*2*np.pi/td, df.sum(0)*2/ud**2*2*np.pi/diam)),
       ("FSpecdf", lambda df: (
-        -(df/case['rho']/256**2 * freq[:,None]).sum(1)/(4*np.pi*.15**2),
-        -(df/case['rho']/256**2 * wavNumb[None,:]).sum(0)/(4*np.pi*.15**2)
+        -(df/case['rho'] * freq[:,None]).sum(1)*2/ud**2,
+        -(df/case['rho'] * wavNumb[None,:]).sum(0)*2/ud**2*td/diam
       )),
-      ("PSpecdf", lambda df: (df.sum(1)/(4*np.pi*.15**2), df.sum(0)/(4*np.pi*.15**2)))
+      ("PSpecdf", lambda df: ( df.sum(1)/(4*np.pi*.13**2)*2*np.pi/td, df.sum(0)/(4*np.pi*.13**2)*2*np.pi/diam ) )
     ]):
       df = load(dirName + tag)
       if df is None: continue
       y, yk = func(df)
+      print(tag,y.sum(),yk.sum())
       y[[0,-1]] = yk[[0,-1]] = np.nan
       a = ax[i]
+      ins = insax[i]
       a.plot(freq, y, c=c, ls='dashed')
       a.plot(freq[sig], y[sig], 'o', c=c, mfc='none')
       a.plot(wavNumb, yk, c=c)
       if hinz < len(yk): a.plot(wavNumb[hinz], yk[hinz], 'o', c=c)
+      if False and tag == "ESpecdf":
+        We = case['We']
+        if case['We']>5: We=5
+        ins.plot(We, np.nansum( yk[1:] * ( wavNumb[1:] - wavNumb[:-1] ) ),'o', c=c, clip_on=False)
       if tag == "FSpecdf":
-        for z in crossings(freq, y): insax.plot(case['We'], z, 'o', c=c, mfc='none', clip_on=False)
-        for z in crossings(wavNumb, yk): insax.plot(case['We'], z, 'o', c=c, clip_on=False)
+        for z in crossings(freq, y): ins.plot(case['We'], z, 'o', c=c, mfc='none', clip_on=False)
+        for z in crossings(wavNumb, yk): ins.plot(case['We'], z, 'o', c=c, clip_on=False)
+      if tag == "PSpecdf" and 'inf' not in dirName:
+        #ins.plot(case['We'], np.nansum(yk),'o', c=c, clip_on=False)
+        ins.plot(case['We'], np.nansum( yk[1:] * ( wavNumb[1:] - wavNumb[:-1] ) ),'o', c=c, clip_on=False)
   fig.savefig('../plots/interfaceVsFreq.pdf', bbox_inches='tight', pad_inches=0.01, transparent=True)
-
-def interfaceVsFreqOrig(): 
-  fig, ax = plt.subplots(1, 3, figsize=(4.5*3, 3))
-  for a in ax:
-    a.tick_params(which='both', direction='in', top=True, right=True)
-    a.set_xscale('log')
-    a.set_xlim([wavNumb[1],wavNumb[-1]])
-    a.text(.4, -.17, '$\\frac{kd}{2\\pi},$', size=20, transform=a.transAxes)
-    a.text(.53, -.17, '$\\frac{\\omega t_d}{2\\pi}$', size=20, transform=a.transAxes)
-  ax[0].text(-0.36, 0.55, r"$\frac{2\pi E(k)}{u_d^2 d},$", fontsize=20, transform=ax[0].transAxes)
-  ax[0].text(-0.36, 0.35, r"$\frac{2\pi E(\omega)}{t_d u_d^2}$", fontsize=20, transform=ax[0].transAxes)
-  ax[0].set_yscale('log')
-  ax[0].set_ylim([1e-8,1])
-  ax[1].text(-0.36, 0.55, r"$\frac{\Phi(k)k d}{2\pi u_d^2},$", fontsize=20, transform=ax[1].transAxes)
-  ax[1].text(-0.36, 0.35, r"$\frac{\Phi(\omega)\omega t_d}{2\pi u_d^2}$", fontsize=20, transform=ax[1].transAxes)
-  #ylim=[-.8,.6]
-  #ax[1].set_ylim(ylim)
-  #ax[1].set_yticks([-.8,-.4,0,.4])
-  ax[1].set_ylim([-15e-9,1e-8])
-  secax = ax[1].secondary_xaxis(0, transform=ax[1].transData)
-  secax.tick_params(which='both', direction='in', top=True, right=True)
-  secax.tick_params(labelbottom=False, labeltop=False, bottom=True, top=True, direction='inout')
-  insax = ax[1].inset_axes((.5,.05,.45,.35))
-  if insax:
-    insax.xaxis.set_label_position("top")
-    insax.xaxis.tick_top()
-    insax.set_xlabel('$\\mathrm{We}$', rotation=0)
-    insax.text(-.4, .65, r"$\frac{l_\Phi}{d},$", fontsize=20, transform=insax.transAxes)
-    insax.text(-.4, .25, r"$\frac{t_\Phi}{t_d}$", fontsize=20, transform=insax.transAxes)
-    insax.set_xlim([0,4])
-    #insax.set_ylim([.6,1.4])
-    insax.set_ylim([.5,1.5])
-    insax.set_xticks([0,1,2,3,4])
-    #insax.set_yticks([.6,1,1.4])
-    insax.tick_params(which='both', direction='in', top=True, right=True, bottom=True)
-  ax[0].plot(wavNumb, wavNumb**(-5/3), ls='dotted', c='k')
-  for dirName, case in reversed(cases.items()):
-    print(dirName)
-    fname = '../plottedData/'+dirName+"ESpecdf.txt"
-    try:
-      with open(fname, encoding = 'utf-8') as f: df = np.loadtxt(f)
-    except FileNotFoundError: continue
-    Ewav = np.array([np.sum(df[:,i]) for i in range(df.shape[1])])
-    E = np.array([np.sum(df[i,:]) for i in range(df.shape[0])])
-    fname = '../plottedData/'+dirName+"FSpecdf.txt"
-    with open(fname, encoding = 'utf-8') as f:
-      df = np.loadtxt(f)
-    df/=case['rho']
-    df/=256**2
-    F = np.array([np.sum(-df[i,:]*freq[i]) for i in range(51)])
-    Fwav = np.array([np.sum(-df[:,i]*wavNumb[i]) for i in range(86)])
-    F[0]=np.nan
-    F[-1]=np.nan
-    if 'inf' in dirName: blu='grey'
-    else: blu = plt.cm.PiYG(case['We']/8)
-    ax[1].plot(freq, F, c=blu, ls='dashed')
-    sigInd = int(TL/case['tsig'])
-    ax[1].plot(freq[sigInd], F[sigInd], 'o', c=blu, mfc='None')
-    for i in range(len(F)-1):
-      if F[i]*F[i+1]<0:
-        flipTime = 1 / ( freq[i] - F[i] * (freq[i+1] - freq[i]) / (F[i+1] - F[i]) )
-        #if insax: insax.plot(case['We'], TL*flipTime/td, 'o', c=blu, mfc='None', clip_on=False)
-        if insax: insax.plot(case['We'], flipTime, 'o', c=blu, mfc='None', clip_on=False)
-    Fwav[0]=np.nan
-    Fwav[-1]=np.nan
-    ax[1].plot(wavNumb, Fwav, c=blu)
-    hinzInd = int(2*np.pi/case['dHinze'])
-    if hinzInd<len(Fwav): ax[1].plot(wavNumb[hinzInd], Fwav[hinzInd], 'o', c=blu)
-    for i in range(len(Fwav)-1):
-      if Fwav[i]*Fwav[i+1]<0:
-        flipLen = 1 / ( wavNumb[i] - Fwav[i] * (wavNumb[i+1] - wavNumb[i]) / (Fwav[i+1] - Fwav[i]) )
-        if insax: insax.plot(case['We'], flipLen, 'o', c=blu, clip_on=False)
-    invUMeanSq = 1.5 / sum(Ewav) 
-    Ewav *= invUMeanSq
-    E *= invUMeanSq
-    E[0]=np.nan
-    E[-1]=np.nan
-    Ewav[0]=np.nan
-    lbl = rf"$\mathrm{{We}}={case['We']:.1f}$"
-    ax[0].plot(freq, E, c=blu, ls='dashed')
-    ax[0].plot(freq[sigInd], E[sigInd], 'o', c=blu, mfc='None')
-    ax[0].plot(wavNumb, Ewav, label=lbl, c=blu, ls='solid')
-    if hinzInd<len(Ewav): ax[0].plot(wavNumb[hinzInd], Ewav[hinzInd], 'o', c=blu)
-  fname = '../plots/interfaceVsFreq.pdf'
-  print('savin ',fname)
-  fig.savefig(fname, bbox_inches='tight', pad_inches=0.01, transparent=True)
-  return
 
 def surPowVsFreq(): 
   fig, ax = plt.subplots(1)
@@ -320,7 +267,7 @@ def surPowVsFreq():
   ax.set_xlim([freq[1],freq[-1]])
   #dFreq=100*timestep/td
   #ax.plot([dFreq,dFreq],[-2E5,2E5],c='k',alpha=.3)
-  for dirName, stat in cases.items():
+  for dirName, case in cases.items():
     #if 'PSpec' in dirName: continue
     print(dirName)
     count=0
@@ -335,7 +282,7 @@ def surPowVsFreq():
         continue
       count+=1
       F = np.array([np.sum(df[:,i]*freq[i]) for i in range(51)])
-      F/=stat['rho']
+      F/=case['rho']
       if 'we_05windowing'in dirName: F*=4
       E += (F -E)/count
       allSpec.append(F)
@@ -343,9 +290,9 @@ def surPowVsFreq():
     l = np.nanpercentile(specData, 25, axis=0)
     u = np.nanpercentile(specData, 75, axis=0)
     print('count',count)
-    ax.plot([td/stat['tsig'],td/stat['tsig']],[-8E4,8E4],c=stat['col'],alpha=.3)
-    ax.fill_between(freq,l,u,color=stat['col'],alpha=0.3,edgecolor='none') 
-    ax.plot(freq,E,label=dirName,c=stat['col'],alpha=0.85)
+    ax.plot([td/case['tsig'],td/case['tsig']],[-8E4,8E4],c=case['col'],alpha=.3)
+    ax.fill_between(freq,l,u,color=case['col'],alpha=0.3,edgecolor='none') 
+    ax.plot(freq,E,label=dirName,c=case['col'],alpha=0.85)
   ax.legend()
   fname = '../plots/surPowVsFreq.pdf'
   print('savin ',fname)
@@ -388,8 +335,8 @@ def energyWindowsVsFreq():
 def energyFreqVsWav(var): 
   import matplotlib.colors as mcolors
   import matplotlib.ticker as mticker
-  for dirName, stat in cases.items():
-    #if 'PSpec' in dirName: continue
+  for dirName, case in cases.items():
+    if 'inf' in dirName and 'ESpec' not in var: continue
     print(dirName)
     fig, ax = plt.subplots(figsize=(4.5, 3))
     ax.set_box_aspect(1)
@@ -422,58 +369,73 @@ def energyFreqVsWav(var):
       df /= 256**3
       print('save ', savname)
       np.savetxt(savname, df)
-    lels=[10**e for e in range(-12, 2, 1)]
-    colors = plt.cm.PiYG(np.linspace(.5,1,len(lels)-1))
     if 'ESpec' in var: 
       #lels=[10**e for e in range(-14, 0, 1)]
       #lels=[10**e for e in range(-20, 1, 1)]
       #colors = plt.cm.RdPu(np.linspace(0,1,len(lels)-1))
-      stat['uSq'] = 2*np.sum(df)/3
-      df /= stat['uSq']/diam/td
+      #case['uSq'] = 2*np.sum(df)/3
+      #df /= case['uSq']/diam/td
+      df /= ud**2*diam*td/2**3/np.pi**2
+      lels=[10**e for e in range(-7, 5, 1)]
+      colors = plt.cm.PiYG(np.linspace(.5,0,len(lels)-1))
     if 'FSpec' in var: 
-      df /= stat['uSq']*case['rho']/diam/td**2
-      #lels = [-1*10**e for e in range(-7, -12, -1)] + [10**e for e in range(-13, -6)]
-      lels = [-1*10**e for e in range(-13, -24, -1)] + [10**e for e in range(-23, -12)]
+      #df /= case['uSq']*case['rho']/diam/td**2
+      #df /= ud**2*diam*td**2/2**3/np.pi**2
+        #-(df/case['rho'] * freq[:,None]).sum(1)*2/ud**2,
+      df *= 4*np.pi**2/ud**2/diam/case['rho']
+      print('rho',case['rho'])
+      lels = [-1*10**e for e in range(-1, -6, -1)] + [10**e for e in range(-5, -0)]
+      #lels = [-1*10**e for e in range(-13, -24, -1)] + [10**e for e in range(-23, -12)]
       print('lels',lels)
       colors = plt.cm.PiYG(np.linspace(0,1,len(lels)-1))
       #cmap = mcolors.LinearSegmentedColormap.from_list("custom_cmap", ["#a400a9", "#FBFCDE", "#124F91"])
     if 'PSpec' in var: 
-      df *= (8*6/128)**2
-      df /= case['rho']/diam/td
+      #df *= (8*6/128)**2
+      #df /= case['rho']/diam/td
+      df *= 4*np.pi/diam**3/td
+      lels=[10**e for e in range(-13, -1, 1)]
+      colors = plt.cm.PiYG(np.linspace(.5,0,len(lels)-1))
     print('df',np.min(df),np.max(df))
     cmap = mcolors.ListedColormap(colors)
     norm = mcolors.BoundaryNorm(lels, ncolors=cmap.N)
     mappable = ax.contourf(X,Y,df, levels=lels, cmap=cmap, norm=norm)
     #mappable = ax.contourf(X,Y,df, levels=20, cmap=cmap)#, norm=norm)
-    if 'inf' in dirName and 'ESpec' in var or '10' in dirName and 'FSpec' in var: 
+    if 'inf' in dirName or '10' in dirName and 'ESpec' not in var: 
       ax.set_ylabel('$\\frac{\\omega t_d}{2\\pi}$', rotation=0,size=22)#,labelpad=15)
     else: ax.set_yticklabels([])
     if '_02' in dirName: 
       cBar = plt.colorbar(mappable, ax=ax)
       cBar.ax.tick_params(which='both', direction='in', top=True, left=True)
       cBar.ax.yaxis.set_major_formatter(mticker.LogFormatterMathtext())
-      if 'ESpec' in var: cBar.set_label("$\\frac{E(k,\omega)}{u'^2 d t_d}$", rotation=0, labelpad=25, size=22)
+      #if 'ESpec' in var: cBar.set_label("$\\frac{E(k,\omega)}{u'^2 d t_d}$", rotation=0, labelpad=25, size=22)
+      if 'ESpec' in var: cBar.set_label("$8\pi^2E(k,\omega)/(u'^2 d t_d)$")
       if 'FSpec' in var: 
-        cBar.set_label("$\\frac{F(k,\omega)}{u'^2 d t_d}$", rotation=0, labelpad=25, size=22)
-        lels = [-1*10**e for e in range(-13, -24, -5)] + [10**e for e in range(-23, -12, 5)]
-        cBar.ax.set_yticks(lels)
-    ax.plot([wavNumb[1],wavNumb[-1]],[td/stat['tsig'],td/stat['tsig']],c='k',lw=.5)
-    grad = stat['uSq']**.5*td/diam
-    ax.plot( [wavNumb[1], wavNumb[-1]], [wavNumb[1]*grad, wavNumb[-1]*grad], c='k', lw=.5)
-    if 'inf' not in dirName: ax.plot( wavNumb, ( wavNumb**3 * (8*6/128)**2 / stat['rho'] ) **.5 * td/diam, c='k', lw=.5)
-    #ax.plot( [freq[1]/stat['uSq']**.5, freq[-1]/stat['uSq']**.5], [freq[1],freq[-1]], c='k', lw=.5)
-    #ax.plot([diam/stat['dHinze'],diam/stat['dHinze']],[freq[1],freq[-1]],c='k',lw=.5)
+        #cBar.set_label("$\\frac{F(k,\omega)}{u_d^2 d t_d}$", rotation=0, labelpad=25, size=22)
+        cBar.set_label("$4\pi^2F(k,\omega)/(u_d^2 d)$")
+        #lels = [-1*10**e for e in range(-13, -24, -5)] + [10**e for e in range(-23, -12, 5)]
+        #cBar.ax.set_yticks(lels)
+      if 'PSpec' in var: 
+        #cBar.set_label("$\\frac{A(k,\omega)}{\pi d^3 t_d}$")
+        #cBar.set_label("$4\pi^2A(k,\omega)/(\pi d^2 d t_d)$")
+        cBar.set_label("$4\pi A(k,\omega)/(d^3 t_d)$")
+    ax.plot([wavNumb[1],wavNumb[-1]],[td/case['tsig'],td/case['tsig']],c='k',lw=.7, ls='dotted')
+    ax.plot([diam/case['dHinze'],diam/case['dHinze']],[freq[1],freq[-1]],c='k',lw=.7, ls='dotted')
+    #grad = case['uSq']**.5*td/diam
+    grad = ud**.5*td/diam
+    ax.plot( [wavNumb[1], wavNumb[-1]], [wavNumb[1]*grad, wavNumb[-1]*grad], c='k', lw=.7)
+    if 'inf' not in dirName: ax.plot( wavNumb, ( wavNumb**3 * (8*6/128)**2 / case['rho'] ) **.5 * td/diam, c='k', lw=.7, ls='dashed')
+    #ax.plot( [freq[1]/case['uSq']**.5, freq[-1]/case['uSq']**.5], [freq[1],freq[-1]], c='k', lw=.5)
     if 'inf' in dirName: lbl = rf"$\mathrm{{We}}=\infty$"
-    else: lbl = rf"$\mathrm{{We}}={stat['We']:.2f}$"
-    ax.text(.01, .99, lbl, fontsize=20, transform=ax.transAxes, ha='left', va='top')
-    print( 'u',stat['uSq']**.5)
+    else: lbl = rf"$\mathrm{{We}}={case['We']:.2f}$"
+    ax.text(.01, .99, lbl, transform=ax.transAxes, ha='left', va='top')
+    #print( 'u',case['uSq']**.5)
     fname = '../plots/'+var+'LocalFreqVsWav_'+dirName+'.pdf'
     print('savin ',fname)
     fig.savefig(fname, bbox_inches='tight', pad_inches=0.01, transparent=True)
   return
 
 def phaseFreqVsWav(): 
-  for dirName, stat in cases.items():
+  for dirName, case in cases.items():
     if 'we_05PSpec' not in dirName: continue
     fig, ax = plt.subplots(1)
     ax.tick_params(which='both', direction='in', top=True, right=True)
@@ -498,7 +460,7 @@ def phaseFreqVsWav():
     tot=np.sum(df)
     E = df/count/np.pi/(256/3)**2/sigma#/tot 
     print('tot',np.sum(df))
-    ax.plot([wavNumb[1],wavNumb[-1]],[td/stat['tsig'],td/stat['tsig']],c=stat['col'],alpha=.3)
+    ax.plot([wavNumb[1],wavNumb[-1]],[td/case['tsig'],td/case['tsig']],c=case['col'],alpha=.3)
     mappable = ax.contourf(X, Y, E, levels=10, cmap='Greys')
     cBar = plt.colorbar(mappable, ax=ax)#, orientation='horizontal')
     cBar.set_label('$\\alpha\\mathbf{k\\cdot k}\\hat c^2 /(\\pi d^2\\sigma)$')
@@ -511,7 +473,7 @@ def surPowFreqVsWav():
   import matplotlib.colors as mcolors
   from scipy.interpolate import griddata
   #for case in 'we_02  we_05  we_05T100  we_05nTime100  we_05tanhWindow  we_05window  we_05windowing  we_10'.split():
-  for dirName, stat in cases.items():
+  for dirName, case in cases.items():
     if 'PSpec' in dirName: continue
     print(dirName)
     fig, ax = plt.subplots(1)#, figsize=[columnWid, .6*columnWid])
@@ -563,7 +525,7 @@ def surPowFreqVsWav():
     cBar.set_ticks(lels)
     cBar.set_ticklabels(lels)
     cBar.ax.tick_params(which='both', direction='in', top=True, left=True)
-    ax.plot([wavNumb[1],wavNumb[-1]],[td/stat['tsig'],td/stat['tsig']],c=stat['col'],alpha=.3)
+    ax.plot([wavNumb[1],wavNumb[-1]],[td/case['tsig'],td/case['tsig']],c=case['col'],alpha=.3)
     ax.set_xlim([wavNumb[1],wavNumb[-1]])
     ax.set_ylim([freq[1],freq[-1]])
     ax.set_xscale('log')
@@ -574,11 +536,11 @@ def surPowFreqVsWav():
   return
 
 #energyVsFreq()
-interfaceVsFreq()
+#interfaceVsFreq()
 #surPowVsFreq()
 #energyWindowsVsFreq()
 #energyFreqVsWav('ESpec')
-#energyFreqVsWav('FSpec')
+energyFreqVsWav('FSpec')
 #energyFreqVsWav('PSpec')
 #phaseFreqVsWav()
 #surPowFreqVsWav()

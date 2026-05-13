@@ -8,8 +8,8 @@ integer, parameter :: startTime=19, nTimes=100, n=256
 integer, parameter :: kAlias=int((2.0/3.0)* (n/2))
 real, parameter :: pi=3.14159265358979, dx=1.0, l=n*dx
 logical :: fileExists, drops=.true.
-character(len=200) :: filename, runName, weName='we_02/', inDir, fileEnd, str
-character(len=200) :: outDir='../we_02PSpec/'
+character(len=200) :: filename, runName, weName='we_10/', inDir, fileEnd, str
+character(len=200) :: outDir='../we_10PSpec/'
 integer :: i,j,k,t,im,jm,km,tm,error,intR,ntask,rank
 integer :: ios,dirU,specU,forcU,fPosU,fNegU,fImaU,pSpcU
 integer(hid_t) :: file_id, dset_id
@@ -38,7 +38,7 @@ do
   write(str,'(i3.3)') startTime+nTimes-1
   inquire(file=trim(inDir)//'/field.'//trim(str)//'.h5', exist=fileExists)
   if (.not.fileExists) then
-    write(*,*) trim(inDir)//'/field.'//trim(str)//'.h5', 'NoEexist'
+    write(*,*) trim(inDir)//'/field.'//trim(str)//'.h5', 'NoExist'
     cycle
   endif
   do t=1,nTimes
