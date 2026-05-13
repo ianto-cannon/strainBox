@@ -6,7 +6,7 @@ timestep=.05
 diss = 1
 sigma=2*2**.5/3
 L=2*np.pi
-diam=.3*L
+diam=L/3#*.3
 uRms = 1.25
 TL=L/uRms
 #ud=(diam/L)**(1/3.)*uRms
@@ -34,7 +34,7 @@ cmap = plt.get_cmap('plasma')
 freq = np.array([i*td/timestep/100 for i in range(51)])
 wavNumb = np.array([i/3 for i in range(86)])
 X, Y = np.meshgrid(wavNumb,freq)
-wavLabel='$\\frac{kd}{2\\pi}$'
+wavLabel='$\\frac{\kappa d}{2\\pi}$'
 freqLabel='$\\frac{\\omega t_d}{2\\pi}$'
 cases = {
     #'we_02'          :{'rho':.2, 'col':cmap(0)},
@@ -48,12 +48,11 @@ cases = {
     'we_inf'         :{'rho':1e8, 'col':'k'},
        }
 for dirName, case in cases.items():
-  case['We'] = case['rho'] * (diss*diam)**(2/3) * diam / sigma * 1.82/1.525 #gives We from VelaSciAdv
+  case['We'] = case['rho'] * (diss*diam)**(2/3) * diam / sigma #gives We from VelaSciAdv
   case['tsig'] = ( case['rho'] * diam**3 / sigma ) **.5
   case['Oh'] = nu * case['rho']**.5  / ( diam * sigma) ** .5
   case['dHinze'] = .725 * sigma**(3/5) * case['rho']**(-3/5) * diss**(-2/5)
-  print(f"{dirName} We {case['We']:.3g} Oh {case['Oh']:.3g} dHinze {case['dHinze']/2/np.pi:.3g} tsig {case['tsig']/TL:.3g}")
-  #print(case['col'])
+  print(f"{dirName} We {case['We']:.5g} Oh {case['Oh']:.3g} dHinze {case['dHinze']/2/np.pi:.3g} tsig {case['tsig']/TL:.3g}")
 
 def energyVsFreq(): 
   fig, ax = plt.subplots(1, 2, figsize=(6.4*100/70,  4.8*50/70))
@@ -68,11 +67,11 @@ def energyVsFreq():
     a.set_xlim([1,100])
     a.text(.4, -.17, '$\\frac{kL}{2\\pi},$', size=20, transform=a.transAxes)
     a.text(.53, -.17, '$\\frac{\\omega T}{2\\pi}$', size=20, transform=a.transAxes, c=blu)
-  ax[0].text(-0.36, 0.55, r"$\frac{2\pi E(k)}{L u'^2},$", fontsize=20, transform=ax[0].transAxes)
+  ax[0].text(-0.36, 0.55, r"$\frac{2\pi E(\kappa)}{L u'^2},$", fontsize=20, transform=ax[0].transAxes)
   ax[0].text(-0.36, 0.35, r"$\frac{2\pi E(\omega)}{T u'^2}$", fontsize=20, transform=ax[0].transAxes, c=blu)
   ax[0].set_yscale('log')
   ax[0].set_ylim([1e-8,1])
-  ax[1].text(-0.36, 0.55, r"$\frac{\Phi(k)k L}{2\pi u'^2},$", fontsize=20, transform=ax[1].transAxes)
+  ax[1].text(-0.36, 0.55, r"$\frac{\Phi(\kappa)\kappa L}{2\pi u'^2},$", fontsize=20, transform=ax[1].transAxes)
   ax[1].text(-0.36, 0.35, r"$\frac{\Phi(\omega)\omega T}{2\pi u'^2}$", fontsize=20, transform=ax[1].transAxes, c=blu)
   ylim=[-.8,.6]
   ax[1].set_ylim(ylim)
@@ -180,14 +179,14 @@ def interfaceVsFreq():
   ax[0].set_ylim(1e-8,1e4)
   ax[1].set_ylim(-65e-4,4e-3)
   #ax[2].set_ylim(1e-3,2e-1)
-  ax[0].set_ylabel(r"$\tilde E(k), \tilde E(\omega)$")
-  ax[1].set_ylabel(r"$\tilde F(k)kd/2\pi, \tilde F(\omega)\omega t_d/2\pi$")
-  #ax[1].set_ylabel(r"$\frac{1}{2}F(k)kd\pi^{-1}u'^{-2}, \frac{1}{2}F(\omega)\omega t_d\pi^{-1}u'^{-2}$")
-  #ax[1].set_ylabel(r"$F(k)kd/(2\pi u'^2), F(\omega)\omega t_d/(\pi u'^2)$")
-  #ax[2].set_ylabel(r"$2A(k)d^{-3}, 2A(\omega)d^{-2}t_d^{-1}$")
-  ax[2].set_ylabel(r"$\tilde A(k), \tilde A(\omega)$")
+  ax[0].set_ylabel(r"$\tilde E(\kappa),\,\,\,\,\tilde E(\omega)$")
+  ax[1].set_ylabel(r"$\tilde F(\kappa)\kappa d/2\pi,\,\,\,\, \tilde F(\omega)\omega t_d/2\pi$")
+  #ax[1].set_ylabel(r"$\frac{1}{2}F(\kappa)\kappa d\pi^{-1}u'^{-2}, \frac{1}{2}F(\omega)\omega t_d\pi^{-1}u'^{-2}$")
+  #ax[1].set_ylabel(r"$F(\kappa)\kappa d/(2\pi u'^2), F(\omega)\omega t_d/(\pi u'^2)$")
+  #ax[2].set_ylabel(r"$2A(\kappa)d^{-3}, 2A(\omega)d^{-2}t_d^{-1}$")
+  ax[2].set_ylabel(r"$\tilde A(\kappa),\,\,\,\, \tilde A(\omega)$")
   ax[0].plot(wavNumb, 1e3*wavNumb**(-5/3), ls='solid', c='k', lw=.7)
-  ax[0].text(.6, .8, r'$10^3\left(\frac{kd}{2\pi}\right)^{-\frac{5}{3}}$', transform=ax[0].transAxes, rotation=-8)
+  ax[0].text(.6, .8, r'$10^3\left(\frac{\kappa d}{2\pi}\right)^{-\frac{5}{3}}$', transform=ax[0].transAxes, rotation=-8)
   insax[0].set_visible(False)
   insax[1].text(-.5, .75, r"$\frac{l_\Phi}{d},$", fontsize=20, transform=insax[1].transAxes)
   insax[1].text(-.5, .15, r"$\frac{t_\Phi}{t_d}$",fontsize=20, transform=insax[1].transAxes)
@@ -195,8 +194,8 @@ def interfaceVsFreq():
   insax[2].yaxis.set_label_position("right")
   insax[2].yaxis.tick_right()
   insax[1].set_ylim(.5,1)
-  insax[2].set_ylim(1,2.3)
-  insax[2].set_yticks([1,1.5,2,2.5])
+  #insax[2].set_ylim(1,2.3)
+  #insax[2].set_yticks([1,1.5,2,2.5])
   secax = ax[1].secondary_xaxis(0, transform=ax[1].transData)
   secax.tick_params(which='both', direction='in', top=True, right=True)
   secax.tick_params(labelbottom=False, labeltop=False, bottom=True, top=True, direction='inout')
@@ -204,8 +203,8 @@ def interfaceVsFreq():
     a.tick_params(which='both', direction='in', top=True, right=True)
     a.set_xscale('log')
     a.set_xlim(wavNumb[1], wavNumb[-1])
-    a.text(.4, -.14, r'$\frac{kd}{2\pi},$', size=20, transform=a.transAxes)
-    a.text(.53, -.14, r'$\frac{\omega t_d}{2\pi}$', size=20, transform=a.transAxes)
+    a.text(.37, -.14, r'$\frac{\kappa d}{2\pi},$', size=20, transform=a.transAxes)
+    a.text(.56, -.14, r'$\frac{\omega t_d}{2\pi}$', size=20, transform=a.transAxes)
     ins.set(xlim=(0, 4), xticks=[0,1,2,3,4])#ylim=(.5, 1.5), 
     ins.xaxis.set_label_position("top")
     ins.xaxis.tick_top()
@@ -219,21 +218,24 @@ def interfaceVsFreq():
     return 1/(x[i] - y[i]*(x[i+1]-x[i])/(y[i+1]-y[i]))
   for dirName, case in reversed(cases.items()):
     print(dirName)
-    c = 'grey' if 'inf' in dirName else plt.cm.PiYG(case['We']/8)
+    c = 'grey' if 'inf' in dirName else plt.cm.PiYG((case['We']-.72)/10)
     sig = int(TL/case['tsig'])
     hinz = int(2*np.pi/case['dHinze'])
     for i, (tag, func) in enumerate([
-      ("ESpecdf", lambda df: (df.sum(1)*2/ud**2*2*np.pi/td, df.sum(0)*2/ud**2*2*np.pi/diam)),
+      ("ESpecdf", lambda df: (
+        df.sum(1)*2/ud**2*2*np.pi/td, 
+        df.sum(0)*2/ud**2*2*np.pi/diam)),
       ("FSpecdf", lambda df: (
         -(df/case['rho'] * freq[:,None]).sum(1)*2/ud**2,
         -(df/case['rho'] * wavNumb[None,:]).sum(0)*2/ud**2*td/diam
       )),
-      ("PSpecdf", lambda df: ( df.sum(1)/(4*np.pi*.13**2)*2*np.pi/td, df.sum(0)/(4*np.pi*.13**2)*2*np.pi/diam ) )
+      ("PSpecdf", lambda df: ( 
+        df.sum(1)/(np.pi*(diam/2/np.pi)**2)*2*np.pi/td, 
+        df.sum(0)/(np.pi*(diam/2/np.pi)**2)*2*np.pi/diam ) )
     ]):
       df = load(dirName + tag)
       if df is None: continue
       y, yk = func(df)
-      print(tag,y.sum(),yk.sum())
       y[[0,-1]] = yk[[0,-1]] = np.nan
       a = ax[i]
       ins = insax[i]
@@ -341,7 +343,7 @@ def energyFreqVsWav(var):
     fig, ax = plt.subplots(figsize=(4.5, 3))
     ax.set_box_aspect(1)
     ax.tick_params(which='both', direction='in', top=True, right=True)
-    ax.set_xlabel('$\\frac{kd}{2\\pi}$', rotation=0,size=22,labelpad=-5)
+    ax.set_xlabel('$\\frac{\kappa d}{2\\pi}$', rotation=0,size=22,labelpad=-5)
     ax.set_xscale('log')
     ax.set_yscale('log')
     ax.set_xlim([wavNumb[1],wavNumb[-1]])
@@ -361,7 +363,6 @@ def energyFreqVsWav(var):
           with open(fname, encoding = 'utf-8') as f:
             count+=1
             df += (np.loadtxt(f).T - df) / count
-            #print(f"found: {fname}")
         except FileNotFoundError: continue
       print(fname,'count',count)
       if count<1: continue
@@ -370,28 +371,16 @@ def energyFreqVsWav(var):
       print('save ', savname)
       np.savetxt(savname, df)
     if 'ESpec' in var: 
-      #lels=[10**e for e in range(-14, 0, 1)]
-      #lels=[10**e for e in range(-20, 1, 1)]
-      #colors = plt.cm.RdPu(np.linspace(0,1,len(lels)-1))
-      #case['uSq'] = 2*np.sum(df)/3
-      #df /= case['uSq']/diam/td
       df /= ud**2*diam*td/2**3/np.pi**2
       lels=[10**e for e in range(-7, 5, 1)]
       colors = plt.cm.PiYG(np.linspace(.5,0,len(lels)-1))
     if 'FSpec' in var: 
-      #df /= case['uSq']*case['rho']/diam/td**2
-      #df /= ud**2*diam*td**2/2**3/np.pi**2
-        #-(df/case['rho'] * freq[:,None]).sum(1)*2/ud**2,
-      df *= 4*np.pi**2/ud**2/diam/case['rho']
+      df *= -4*np.pi**2/ud**2/diam/case['rho']
       print('rho',case['rho'])
-      lels = [-1*10**e for e in range(-1, -6, -1)] + [10**e for e in range(-5, -0)]
-      #lels = [-1*10**e for e in range(-13, -24, -1)] + [10**e for e in range(-23, -12)]
+      lels = [-1*10**e for e in range(-1, -9, -1)] + [10**e for e in range(-8, -0)]
       print('lels',lels)
-      colors = plt.cm.PiYG(np.linspace(0,1,len(lels)-1))
-      #cmap = mcolors.LinearSegmentedColormap.from_list("custom_cmap", ["#a400a9", "#FBFCDE", "#124F91"])
+      colors = plt.cm.PiYG(np.linspace(1,0,len(lels)-1))
     if 'PSpec' in var: 
-      #df *= (8*6/128)**2
-      #df /= case['rho']/diam/td
       df *= 4*np.pi/diam**3/td
       lels=[10**e for e in range(-13, -1, 1)]
       colors = plt.cm.PiYG(np.linspace(.5,0,len(lels)-1))
@@ -399,7 +388,6 @@ def energyFreqVsWav(var):
     cmap = mcolors.ListedColormap(colors)
     norm = mcolors.BoundaryNorm(lels, ncolors=cmap.N)
     mappable = ax.contourf(X,Y,df, levels=lels, cmap=cmap, norm=norm)
-    #mappable = ax.contourf(X,Y,df, levels=20, cmap=cmap)#, norm=norm)
     if 'inf' in dirName or '10' in dirName and 'ESpec' not in var: 
       ax.set_ylabel('$\\frac{\\omega t_d}{2\\pi}$', rotation=0,size=22)#,labelpad=15)
     else: ax.set_yticklabels([])
@@ -407,28 +395,21 @@ def energyFreqVsWav(var):
       cBar = plt.colorbar(mappable, ax=ax)
       cBar.ax.tick_params(which='both', direction='in', top=True, left=True)
       cBar.ax.yaxis.set_major_formatter(mticker.LogFormatterMathtext())
-      #if 'ESpec' in var: cBar.set_label("$\\frac{E(k,\omega)}{u'^2 d t_d}$", rotation=0, labelpad=25, size=22)
-      if 'ESpec' in var: cBar.set_label("$8\pi^2E(k,\omega)/(u'^2 d t_d)$")
+      if 'ESpec' in var: cBar.set_label("$8\pi^2E(\kappa,\omega)/(u_d^2 d t_d)$")
       if 'FSpec' in var: 
-        #cBar.set_label("$\\frac{F(k,\omega)}{u_d^2 d t_d}$", rotation=0, labelpad=25, size=22)
-        cBar.set_label("$4\pi^2F(k,\omega)/(u_d^2 d)$")
-        #lels = [-1*10**e for e in range(-13, -24, -5)] + [10**e for e in range(-23, -12, 5)]
-        #cBar.ax.set_yticks(lels)
+        cBar.set_label("$4\pi^2F(\kappa,\omega)/(u_d^2 d)$")
+        lels=np.array(lels)
+        cBar.set_ticks(lels[[1,3,5,7,8,10,12,14]])
       if 'PSpec' in var: 
-        #cBar.set_label("$\\frac{A(k,\omega)}{\pi d^3 t_d}$")
-        #cBar.set_label("$4\pi^2A(k,\omega)/(\pi d^2 d t_d)$")
-        cBar.set_label("$4\pi A(k,\omega)/(d^3 t_d)$")
+        cBar.set_label("$4\pi A(\kappa,\omega)/(d^3 t_d)$")
     ax.plot([wavNumb[1],wavNumb[-1]],[td/case['tsig'],td/case['tsig']],c='k',lw=.7, ls='dotted')
     ax.plot([diam/case['dHinze'],diam/case['dHinze']],[freq[1],freq[-1]],c='k',lw=.7, ls='dotted')
-    #grad = case['uSq']**.5*td/diam
     grad = ud**.5*td/diam
     ax.plot( [wavNumb[1], wavNumb[-1]], [wavNumb[1]*grad, wavNumb[-1]*grad], c='k', lw=.7)
     if 'inf' not in dirName: ax.plot( wavNumb, ( wavNumb**3 * (8*6/128)**2 / case['rho'] ) **.5 * td/diam, c='k', lw=.7, ls='dashed')
-    #ax.plot( [freq[1]/case['uSq']**.5, freq[-1]/case['uSq']**.5], [freq[1],freq[-1]], c='k', lw=.5)
     if 'inf' in dirName: lbl = rf"$\mathrm{{We}}=\infty$"
     else: lbl = rf"$\mathrm{{We}}={case['We']:.2f}$"
-    ax.text(.01, .99, lbl, transform=ax.transAxes, ha='left', va='top')
-    #print( 'u',case['uSq']**.5)
+    ax.text(.01, .97, lbl, transform=ax.transAxes, ha='left', va='top')
     fname = '../plots/'+var+'LocalFreqVsWav_'+dirName+'.pdf'
     print('savin ',fname)
     fig.savefig(fname, bbox_inches='tight', pad_inches=0.01, transparent=True)
@@ -521,7 +502,7 @@ def surPowFreqVsWav():
     else: mappable = ax.contourf(X,Y,df, levels=lels, cmap=cmap, norm=norm)
     #mappable = ax.contourf(XI,YI,ZI, levels=lels, cmap=cmap, norm=norm)
     cBar = plt.colorbar(mappable, ax=ax)
-    cBar.set_label('$\\mathbf{\\hat f_\\sigma\\cdot\\hat u^*}kd\\omega t_\\sigma /(4\\pi^2\\epsilon)$')#, rotation=0, labelpad=15)
+    cBar.set_label('$\\mathbf{\\hat f_\\sigma\\cdot\\hat u^*}\kappa d\\omega t_\\sigma /(4\\pi^2\\epsilon)$')#, rotation=0, labelpad=15)
     cBar.set_ticks(lels)
     cBar.set_ticklabels(lels)
     cBar.ax.tick_params(which='both', direction='in', top=True, left=True)
@@ -536,11 +517,11 @@ def surPowFreqVsWav():
   return
 
 #energyVsFreq()
-#interfaceVsFreq()
+interfaceVsFreq()
 #surPowVsFreq()
 #energyWindowsVsFreq()
-#energyFreqVsWav('ESpec')
+energyFreqVsWav('ESpec')
 energyFreqVsWav('FSpec')
-#energyFreqVsWav('PSpec')
+energyFreqVsWav('PSpec')
 #phaseFreqVsWav()
 #surPowFreqVsWav()
