@@ -3,13 +3,10 @@
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20581132.svg)](https://doi.org/10.5281/zenodo.20581132)
 [![Paper: J. Phys. Conf. Ser.](https://img.shields.io/badge/J.%20Phys.%3A%20Conf.%20Ser.-3230%2F012006-blue)](https://doi.org/10.1088/1742-6596/3230/1/012006)
 [![Paper: TSFP14](https://img.shields.io/badge/TSFP14-paper%20262-blue)](http://www.tsfp-conference.org/proceedings/2026/262.pdf)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-![Version](https://img.shields.io/badge/release-v1.0-informational)
-![Fortran](https://img.shields.io/badge/Fortran-MPI%20%2B%20HDF5-734f96)
+
+![Snapshots of a drop in the lead up to breakage in turbulence](break.jpg)
 
 Measure the strain rate of a turbulent fluid surrounding a droplet.
-
-If you use this code, please see [Citing](#citing) and the [associated publications](#associated-publications).
 
 `strainBox` is a post-processing code for 3D direct numerical simulations of a deformable drop (or bubble) in homogeneous turbulence in a periodic box. It reads saved flow fields, finds the drop, and computes:
 
@@ -17,10 +14,6 @@ If you use this code, please see [Citing](#citing) and the [associated publicati
 - **Velocity-gradient tensor, strain rate, vorticity, and Reynolds-stress-like tensor**, evaluated over a range of regions around the drop (the drop itself, an equivalent ellipsoid, spheres and cubes of several radii, and the same regions placed on the far side of the periodic box as a control).
 
 A Python script then turns the output into publication-style plots.
-
-> **Version note:** this is the `v1.0` snapshot. It is research code that was written to run on one specific cluster, so a few paths are hard-coded. See [Adapting to your own data](#adapting-to-your-own-data).
-
----
 
 ## Repository contents
 
@@ -33,9 +26,6 @@ A Python script then turns the output into publication-style plots.
 | `run.sh` | Example SLURM batch script (32 MPI ranks). |
 | `plot.py` | Matplotlib scripts that read the output and make PDF figures. |
 | `transpose.awk.sh` | Small helper that transposes a whitespace-separated text table. |
-| `LICENSE` | MIT. |
-
----
 
 ## Requirements
 
@@ -53,8 +43,6 @@ A Python script then turns the output into publication-style plots.
 - A working LaTeX installation (`plot.py` sets `text.usetex: True`)
 
 **Memory:** all arrays are static and sized at compile time for the grid. At 256³ each MPI rank needs roughly 2 to 2.5 GB, which is why the makefile uses `-mcmodel=large`. Budget memory per rank accordingly.
-
----
 
 ## Building
 
@@ -74,8 +62,6 @@ A Python script then turns the output into publication-style plots.
    make clean    # removes the executable, *.o and *.mod
    ```
 
-Compiler flags in use: `-O3 -mcmodel=large -fconvert=big-endian -ffixed-line-length-140 -fno-align-commons -cpp`. A commented-out `DBG` line in the makefile has debug flags (`-O0 -Wall -fcheck=all -g`) if you need them.
-
 ### Changing the grid size
 
 The grid is set at compile time in `modVelGrad.f90`:
@@ -86,8 +72,6 @@ real, dimension(3), parameter :: dx = (/1.0,1.0,1.0/), l = nt*dx  ! spacing, box
 ```
 
 Edit `nt` and `dx` and rebuild. Note that `main.f90` also declares `velGHat` with `nt(1)` in its last two dimensions, so non-cubic grids will need that fixed.
-
----
 
 ## Input data
 
@@ -105,8 +89,6 @@ For every simulation run, the program expects a directory of HDF5 snapshots name
 The domain is assumed to be **periodic** in all three directions. Drops that straddle a boundary are handled by shifting the drop's mass histogram so it is contiguous.
 
 Runs are directories whose names look like `run_break_024`: the program takes everything from the 11th character onward as an integer run number.
-
----
 
 ## Running
 
@@ -155,8 +137,6 @@ For each snapshot, `dropStrain` does the following.
 | `ModesR###` | Sphere in Fourier space, centred on the drop | Gradient from Fourier modes with wavelength larger than `R` |
 | `FarBoxR###`, `FarSphereR###`, `FarSphereAvR###`, `FarModesR###` | Same shapes but centred on the opposite side of the periodic box | Control measurement of the background turbulence away from the drop |
 
----
-
 ## Output
 
 Results go to `output/<runName>/`. All files are plain text, one row per snapshot, with columns in scientific notation. Files are opened in append mode in the sense that each snapshot adds a row.
@@ -182,8 +162,6 @@ Results go to `output/<runName>/`. All files are plain text, one row per snapsho
 
 `<Region>` is one of the names in the table above, for example `strain/SphereR085.txt` or `dVeldx/Drop.txt`.
 
----
-
 ## Plotting
 
 `plot.py` contains one function per figure, for example:
@@ -208,43 +186,6 @@ Some plots (`ESpec`, `FSpec`, forcing/energy spectra) use `ESpec.txt` and `FSpec
 ```bash
 ./transpose.awk.sh input.txt > output.txt
 ```
-
----
-
-## Adapting to your own data
-
-The code was written for one cluster and one directory layout. Before running it elsewhere, change:
-
-| Where | What to change |
-|---|---|
-| `makefile` | `HDF5_INC`, `HDF5_LIB` |
-| `main.f90` | `weName` (default `'we_05/'`) and the two occurrences of `/home/alberto.velamartin/drop_time/` (the input data root) |
-| `main.f90` | The run-number parsing `trim(runName(11:))`, which assumes names with a 10-character prefix like `run_break_` |
-| `modVelGrad.f90` | `nt`, `dx` if your grid differs |
-| `run.sh` | Job name, time, task count, excluded nodes, module names |
-| `plot.py` | Every `/home/ianto.cannon/drops/boxStrain/...` path and the `cases` dictionary |
-
----
-
-## Known limitations
-
-- Several paths are hard-coded (see above), and the program shells out to `ls`, `mkdir` and `rm`, so it needs a Unix-like environment.
-- In `saveStrain`, the invariants `QInva` and `RInva` are accumulated without being initialised to zero. Initialise them to `0.0` before relying on the `Q` and `R` columns in `dVeldx/`.
-- The code assumes incompressible flow when computing `R` (the formula uses `tr(A³)/3` in place of the determinant).
-- Parallelism is over runs only. Grid size is fixed at compile time.
-- Deformation is undefined (set to `-1`) when the drop spans the whole domain.
-
----
-
-## Associated publications
-
-This code was developed for the following work:
-
-1. I. Cannon, D. Morón, A. Vela-Martín and M. Avila, **Strain-driven drop breakup in turbulence**, *Journal of Physics: Conference Series* **3230**, 012006 (2026), presented at the 6th Madrid Turbulence Workshop (MTW 2025). doi: [10.1088/1742-6596/3230/1/012006](https://doi.org/10.1088/1742-6596/3230/1/012006)
-
-2. I. Cannon, D. Morón, M. Avila and A. Vela-Martín, **Spatio-temporal energy spectra of drops in turbulence**, *14th International Symposium on Turbulence and Shear Flow Phenomena (TSFP14)*, Heidelberg, Germany, July 28-31, 2026. [PDF](http://www.tsfp-conference.org/proceedings/2026/262.pdf)
-
-The strain-rate, drop-shape and alignment diagnostics computed by `dropStrain` and plotted by `plot.py` (strain vs. time before breakup, inertia-axis alignment with strain eigenvectors) relate to the strain-driven breakup study. The energy and forcing spectra plots in `plot.py` relate to the spectra study.
 
 ## Citing
 
@@ -281,20 +222,3 @@ If you use this software, please cite the archived release:
   year      = {2026},
   url       = {http://www.tsfp-conference.org/proceedings/2026/262.pdf}
 }
-```
-
----
-
-## References
-
-The source comments point to the following methods:
-
-- Mendoza et al., *Acta Materialia* (2006), doi:10.1016/j.actamat.2005.10.010 for the genus calculation.
-- Bunner and Tryggvason, *J. Fluid Mech.* (2003) for the moment of inertia of a drop (with the diagonal term added here).
-- Paul et al. (2022), "role of breakup", for the definitions of the `Q` and `R` invariants.
-
----
-
-## License
-
-Released under the [MIT License](LICENSE). Copyright (c) 2025 Ianto Cannon.
